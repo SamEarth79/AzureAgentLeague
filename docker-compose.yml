@@ -9,7 +9,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./services/backend/app:/app
+      - ./services/backend:/app
       - backend-cache:/root/.cache
     environment:
       - PYTHONUNBUFFERED=1

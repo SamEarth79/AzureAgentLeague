@@ -1,0 +1,1 @@
+"""ArchMind backend application package."""

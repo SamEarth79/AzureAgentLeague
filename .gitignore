@@ -1,5 +1,6 @@
 .env
 AGENTS.md
+PLAN.md
 .claude/
 specs/
 .pytest_cache/
@@ -12,3 +13,4 @@ yarn-debug.log*
 yarn-error.log*
 *.log
 *.log.*
+*.pyc
