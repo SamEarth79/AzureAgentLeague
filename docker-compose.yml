@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./services/backend
+      dockerfile: Dockerfile.dev
+    container_name: archmind-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/backend/app:/app
+      - backend-cache:/root/.cache
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=development
+    env_file:
+      - .env
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - archmind-network
+
+  frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile.dev
+    container_name: archmind-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./services/frontend/src:/app/src
+      - ./services/frontend/public:/app/public
+      - frontend-modules:/app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8000
+    command: npm run dev -- --host 0.0.0.0
+    networks:
+      - archmind-network
+    depends_on:
+      - backend
+
+volumes:
+  backend-cache:
+  frontend-modules:
+
+networks:
+  archmind-network:
+    driver: bridge
