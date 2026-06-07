@@ -1,99 +1,17 @@
-import asyncio
 import json
 import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from langchain.schema import AIMessage
 
+from ..agent import run_agent
 from ..core import SessionNotFoundError, session_manager
+from ..models.domain import Architecture
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-STREAM_DELAY_SECONDS = 0.4
-
-
-def _mock_architecture_payload() -> Dict[str, Any]:
-    return {
-        "services": [
-            {
-                "id": "svc-functions",
-                "type": "Azure Functions",
-                "name": "Image Processor",
-                "config": {"plan": "consumption", "runtime": "python"},
-                "reasoning": "Serverless compute scales with image processing load.",
-                "cost_estimate": 12.0,
-                "region": "eastus",
-            },
-            {
-                "id": "svc-blob",
-                "type": "Azure Blob Storage",
-                "name": "Image Store",
-                "config": {"tier": "Hot", "redundancy": "LRS"},
-                "reasoning": "Durable storage for uploaded images.",
-                "cost_estimate": 1.84,
-                "region": "eastus",
-            },
-        ],
-        "connections": [
-            {
-                "id": "conn-1",
-                "source_id": "svc-blob",
-                "target_id": "svc-functions",
-                "type": "event-driven",
-                "protocol": "Event Grid",
-            }
-        ],
-        "metadata": {
-            "estimated_cost_monthly": 13.84,
-            "estimated_latency_p95": "800ms",
-            "estimated_throughput": "100 req/s",
-            "regions": ["eastus"],
-            "compliance": [],
-            "failure_scenarios": ["Function cold start under burst load"],
-        },
-        "warnings": [],
-    }
-
-
-async def _stream_mock_response(websocket: WebSocket, user_content: str) -> None:
-    events: list[Dict[str, Any]] = [
-        {
-            "type": "reasoning",
-            "content": "Analyzing requirements and constraints...",
-            "step": "parsing",
-        },
-        {
-            "type": "tool_call",
-            "tool": "query_foundry_iq",
-            "args": {"query": user_content},
-        },
-        {
-            "type": "tool_result",
-            "tool": "query_foundry_iq",
-            "result": "Found 3 candidate Azure services matching the workload.",
-        },
-        {
-            "type": "reasoning",
-            "content": "Selecting Azure services based on cost, scale, and latency...",
-            "step": "selection",
-        },
-        {
-            "type": "warning",
-            "content": "Single region deployment — no geo-redundancy configured.",
-            "severity": "medium",
-        },
-        {
-            "type": "architecture",
-            "data": _mock_architecture_payload(),
-        },
-        {"type": "complete"},
-    ]
-
-    for event in events:
-        await asyncio.sleep(STREAM_DELAY_SECONDS)
-        await websocket.send_json(event)
 
 
 @router.websocket("/api/sessions/{session_id}/stream")
@@ -133,7 +51,7 @@ async def stream_session(websocket: WebSocket, session_id: str) -> None:
                 continue
 
             try:
-                session_manager.update_session(
+                session = session_manager.update_session(
                     session_id,
                     append_message={"role": "user", "content": content},
                     status="active",
@@ -145,10 +63,71 @@ async def stream_session(websocket: WebSocket, session_id: str) -> None:
                 await websocket.close(code=4404)
                 return
 
-            await _stream_mock_response(websocket, content)
+            is_answering = session.has_pending_clarifications()
+            original_prompt = session.original_prompt if is_answering else None
+            if is_answering:
+                session_manager.set_original_prompt(session_id, None)
+                session_manager.clear_pending_clarifications(session_id)
+
+            existing_arch = session.current_architecture
+
+            async def send(event: Dict[str, Any]) -> None:
+                await websocket.send_json(event)
 
             try:
-                session_manager.update_session(session_id, status="complete")
+                final_state = await run_agent(
+                    session_id=session_id,
+                    user_message=content,
+                    message_history=list(session.messages),
+                    websocket_sender=send,
+                    existing_architecture=existing_arch,
+                    is_clarification_response=is_answering,
+                    original_prompt=original_prompt,
+                )
+            except Exception:
+                logger.exception("Agent run failed for session %s", session_id)
+                try:
+                    await websocket.send_json(
+                        {"type": "error", "content": "Agent run failed; see server logs."}
+                    )
+                except Exception:
+                    pass
+                continue
+
+            pending_questions = list(final_state.get("pending_clarifications") or [])
+            if pending_questions:
+                session_manager.set_pending_clarifications(
+                    session_id,
+                    questions=pending_questions,
+                    missing_fields=list(final_state.get("pending_missing_fields") or []),
+                )
+                if not is_answering:
+                    session_manager.set_original_prompt(session_id, content)
+
+                last_ai = next(
+                    (m for m in reversed(final_state.get("messages") or []) if isinstance(m, AIMessage)),
+                    None,
+                )
+                question_text = last_ai.content if last_ai else "I need a few more details."
+                session_manager.update_session(
+                    session_id,
+                    append_message={"role": "assistant", "content": question_text},
+                )
+                continue
+
+            architecture = Architecture(
+                services=list(final_state.get("selected_services") or []),
+                connections=list(final_state.get("connections") or []),
+                metadata=final_state.get("metadata"),
+                warnings=list(final_state.get("warnings") or []),
+            )
+
+            try:
+                session_manager.update_session(
+                    session_id,
+                    current_architecture=architecture,
+                    status="complete",
+                )
             except SessionNotFoundError:
                 return
 

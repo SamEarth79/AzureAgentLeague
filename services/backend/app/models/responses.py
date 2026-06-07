@@ -19,6 +19,9 @@ class SessionDetailResponse(BaseModel):
     updated_at: datetime
     history: List[dict]
     current_architecture: Optional[Architecture] = None
+    pending_clarifications: List[str] = []
+    pending_missing_fields: List[str] = []
+    original_prompt: Optional[str] = None
 
 
 class ExportResponse(BaseModel):

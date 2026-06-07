@@ -15,6 +15,12 @@ class Session:
     messages: List[dict] = field(default_factory=list)
     current_architecture: Optional[Architecture] = None
     status: str = "active"
+    pending_clarifications: List[str] = field(default_factory=list)
+    pending_missing_fields: List[str] = field(default_factory=list)
+    original_prompt: Optional[str] = None
+
+    def has_pending_clarifications(self) -> bool:
+        return bool(self.pending_clarifications)
 
 
 class SessionNotFoundError(Exception):
@@ -67,6 +73,46 @@ class SessionManager:
                 session.status = status
             if append_message is not None:
                 session.messages.append(append_message)
+            session.updated_at = datetime.now(timezone.utc)
+            return session
+
+    def set_original_prompt(
+        self,
+        session_id: str,
+        original_prompt: Optional[str],
+    ) -> Session:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                raise SessionNotFoundError(session_id)
+            session.original_prompt = original_prompt
+            session.updated_at = datetime.now(timezone.utc)
+            return session
+
+    def set_pending_clarifications(
+        self,
+        session_id: str,
+        questions: List[str],
+        missing_fields: List[str],
+    ) -> Session:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                raise SessionNotFoundError(session_id)
+            session.pending_clarifications = list(questions)
+            session.pending_missing_fields = list(missing_fields)
+            session.status = "awaiting_clarification"
+            session.updated_at = datetime.now(timezone.utc)
+            return session
+
+    def clear_pending_clarifications(self, session_id: str) -> Session:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                raise SessionNotFoundError(session_id)
+            session.pending_clarifications = []
+            session.pending_missing_fields = []
+            session.status = "active"
             session.updated_at = datetime.now(timezone.utc)
             return session
 

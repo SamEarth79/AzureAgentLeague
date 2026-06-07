@@ -67,6 +67,9 @@ async def get_session(session_id: str) -> SessionDetailResponse:
         updated_at=session.updated_at,
         history=list(session.messages),
         current_architecture=session.current_architecture,
+        pending_clarifications=list(session.pending_clarifications),
+        pending_missing_fields=list(session.pending_missing_fields),
+        original_prompt=session.original_prompt,
     )
 
 
