@@ -420,10 +420,6 @@ async def parse_requirements_node(state: AgentState) -> Dict[str, Any]:
     }
 
     needs_clarification = False
-    if is_clarification_response:
-        needs_clarification = False
-    elif not intent["region"] and not is_refinement:
-        needs_clarification = True
 
     if is_clarification_response:
         summary = (

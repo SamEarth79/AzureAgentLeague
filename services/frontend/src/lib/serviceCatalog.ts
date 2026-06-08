@@ -1,0 +1,26 @@
+import type { Service } from "../types/architecture";
+
+export const SERVICE_CATALOG: Service[] = [
+  { id: "functions", name: "Functions", type: "Azure Functions", category: "Compute", icon: "Cpu", description: "Serverless compute for event-driven apps" },
+  { id: "app-service", name: "App Service", type: "Azure App Service", category: "Compute", icon: "Cloud", description: "Fully managed web apps & APIs" },
+  { id: "aks", name: "AKS", type: "Azure Kubernetes Service", category: "Compute", icon: "Cloud", description: "Managed Kubernetes clusters" },
+  { id: "acr", name: "Container Registry", type: "Azure Container Registry", category: "Compute", icon: "Cloud", description: "Managed container images" },
+  { id: "blob", name: "Blob Storage", type: "Azure Blob Storage", category: "Storage", icon: "Database", description: "Scalable object storage for unstructured data" },
+  { id: "cosmos", name: "Cosmos DB", type: "Azure Cosmos DB", category: "Storage", icon: "Database", description: "NoSQL database with multi-region writes" },
+  { id: "sql", name: "SQL Database", type: "Azure SQL Database", category: "Storage", icon: "Database", description: "Managed relational database" },
+  { id: "redis", name: "Redis Cache", type: "Azure Cache for Redis", category: "Storage", icon: "Database", description: "In-memory data cache" },
+  { id: "event-grid", name: "Event Grid", type: "Azure Event Grid", category: "Messaging", icon: "MessageSquare", description: "Event routing at scale" },
+  { id: "service-bus", name: "Service Bus", type: "Azure Service Bus", category: "Messaging", icon: "MessageSquare", description: "Enterprise message broker" },
+  { id: "event-hubs", name: "Event Hubs", type: "Azure Event Hubs", category: "Messaging", icon: "MessageSquare", description: "Big data streaming platform" },
+  { id: "queue", name: "Queue Storage", type: "Azure Queue Storage", category: "Messaging", icon: "MessageSquare", description: "Simple message queueing" },
+  { id: "openai", name: "OpenAI", type: "Azure OpenAI", category: "AI", icon: "Brain", description: "GPT-4o, DALL-E, and embedding models" },
+  { id: "aisearch", name: "AI Search", type: "Azure AI Search", category: "AI", icon: "Brain", description: "Vector + keyword search" },
+  { id: "docintel", name: "Document Intelligence", type: "Azure Document Intelligence", category: "AI", icon: "Brain", description: "OCR and document analysis" },
+  { id: "speech", name: "Speech Services", type: "Azure Speech Services", category: "AI", icon: "Brain", description: "Speech-to-text and text-to-speech" },
+  { id: "apim", name: "API Management", type: "Azure API Management", category: "Networking", icon: "Cloud", description: "API gateway and developer portal" },
+  { id: "cdn", name: "CDN", type: "Azure CDN", category: "Networking", icon: "Cloud", description: "Content delivery network" },
+  { id: "front-door", name: "Front Door", type: "Azure Front Door", category: "Networking", icon: "Cloud", description: "Global load balancer and WAF" },
+  { id: "dns", name: "DNS", type: "Azure DNS", category: "Networking", icon: "Cloud", description: "Domain name resolution" },
+  { id: "monitor", name: "Monitor", type: "Azure Monitor", category: "Management", icon: "Cloud", description: "Observability and logging" },
+  { id: "keyvault", name: "Key Vault", type: "Azure Key Vault", category: "Security", icon: "Cloud", description: "Secrets and key management" },
+];

@@ -30,7 +30,6 @@ services:
     volumes:
       - ./services/frontend/src:/app/src
       - ./services/frontend/public:/app/public
-      - frontend-modules:/app/node_modules
     environment:
       - NODE_ENV=development
       - VITE_API_URL=http://localhost:8000
@@ -43,7 +42,6 @@ services:
 
 volumes:
   backend-cache:
-  frontend-modules:
 
 networks:
   archmind-network:
