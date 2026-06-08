@@ -1,7 +1,6 @@
 import ReactFlow, {
   Background,
   Controls,
-  MiniMap,
   NodeChange,
 } from "reactflow";
 import "reactflow/dist/style.css";
@@ -22,7 +21,7 @@ export default function Canvas({ className }: { className?: string }) {
   if (!architecture || architecture.services.length === 0) {
     return (
       <div
-        className={`${className} flex items-center justify-center text-muted-foreground`}
+        className={`${className} flex items-center justify-center text-muted-foreground bg-[#151415]`}
       >
         <div className="text-center">
           <Brain size={64} className="mx-auto mb-4 opacity-20" />
@@ -51,7 +50,51 @@ export default function Canvas({ className }: { className?: string }) {
   };
 
   return (
-    <div className={className}>
+    <div className={`${className} relative`} style={{ background: "#151415" }}>
+      {/* Legend */}
+      <div className="absolute top-3 right-3 z-10 rounded-xl border border-white/[0.08] bg-[#111118]/90 backdrop-blur-sm px-3 py-2.5 space-y-2.5 pointer-events-none">
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Edges</p>
+          <div className="space-y-1">
+            {[
+              { color: "#00d4ff", label: "Sync",         dash: false },
+              { color: "#f59e0b", label: "Async",        dash: true  },
+              { color: "#8b5cf6", label: "Event-driven", dash: true  },
+            ].map(({ color, label, dash }) => (
+              <div key={label} className="flex items-center gap-2">
+                <svg width="20" height="8">
+                  <line
+                    x1="0" y1="4" x2="20" y2="4"
+                    stroke={color}
+                    strokeWidth="1.5"
+                    strokeDasharray={dash ? "4 3" : undefined}
+                  />
+                </svg>
+                <span className="text-[10px] text-muted-foreground">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="border-t border-white/[0.06] pt-2">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Nodes</p>
+          <div className="space-y-1">
+            {[
+              { color: "#f59e0b", label: "Compute"    },
+              { color: "#14b8a6", label: "Storage"    },
+              { color: "#ef4444", label: "Messaging"  },
+              { color: "#8b5cf6", label: "AI"         },
+              { color: "#00d4ff", label: "Networking" },
+              { color: "#6366f1", label: "Database"   },
+            ].map(({ color, label }) => (
+              <div key={label} className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full shrink-0" style={{ background: color }} />
+                <span className="text-[10px] text-muted-foreground">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -71,13 +114,9 @@ export default function Canvas({ className }: { className?: string }) {
       >
         <Background color="#ffffff15" gap={24} size={1} />
         <Controls
+          position="bottom-right"
           className="glass rounded-md overflow-hidden"
           showInteractive={false}
-        />
-        <MiniMap
-          nodeColor="#3b82f6"
-          maskColor="rgba(10, 14, 26, 0.85)"
-          className="glass rounded-md overflow-hidden"
         />
       </ReactFlow>
     </div>

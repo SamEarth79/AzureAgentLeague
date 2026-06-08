@@ -4,11 +4,11 @@ import type { Service, Connection } from "../types/architecture";
 
 export function getLayoutedElements(services: Service[], connections: Connection[]) {
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: "TB", nodesep: 100, ranksep: 150 });
+  g.setGraph({ rankdir: "LR", nodesep: 60, ranksep: 120 });
   g.setDefaultEdgeLabel(() => ({}));
 
   services.forEach((service) => {
-    g.setNode(service.id, { width: 180, height: 80 });
+    g.setNode(service.id, { width: 190, height: 70 });
   });
 
   connections.forEach((conn) => {

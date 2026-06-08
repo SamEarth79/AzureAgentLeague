@@ -31,6 +31,18 @@ NODE_TO_STEP: Dict[str, str] = {
     "output": "complete",
 }
 
+# How long to pause BEFORE emitting each node's event (mock LLM "thinking" time)
+NODE_DELAYS: Dict[str, float] = {
+    "parse":                 1.5,
+    "query":                 2.5,
+    "reason":                3.0,
+    "validate":              2.0,
+    "self_correct":          2.0,
+    "estimate":              2.0,
+    "output":                1.0,
+    "request_clarification": 1.0,
+}
+
 DEFAULT_REASONING: Dict[str, str] = {
     "parse": "Analyzing requirements...",
     "request_clarification": "Requesting clarification from the user...",
@@ -110,14 +122,15 @@ async def stream_agent_events(
     final_state: AgentState = dict(initial_state)
 
     async for chunk in graph.astream(initial_state):
-        if step_delay > 0:
-            await asyncio.sleep(step_delay)
-
         for node_name, state_update in chunk.items():
             if node_name in ("__start__", "__end__"):
                 if node_name == "__end__" and isinstance(state_update, dict):
                     final_state.update(state_update)
                 continue
+
+            delay = NODE_DELAYS.get(node_name, step_delay)
+            if delay > 0:
+                await asyncio.sleep(delay)
 
             step = NODE_TO_STEP.get(node_name, node_name)
             content = _extract_latest_ai_content(state_update.get("messages"))

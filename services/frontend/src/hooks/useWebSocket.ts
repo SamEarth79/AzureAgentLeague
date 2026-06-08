@@ -67,11 +67,6 @@ export function useWebSocket(sessionId: string | null) {
             });
             break;
           case "complete":
-            addMessageRef.current({
-              role: "assistant",
-              type: "complete",
-              content: "Architecture complete",
-            });
             setLoading(false);
             break;
         }

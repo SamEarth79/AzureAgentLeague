@@ -14,11 +14,6 @@ export function useSession() {
     try {
       const { session_id } = await createSession(prompt);
       setSessionId(session_id);
-      addMessage({
-        role: "system",
-        type: "reasoning",
-        content: `Connecting to session ${session_id}...`,
-      });
       return session_id;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to create session";

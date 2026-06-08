@@ -8,7 +8,6 @@ import Canvas from "../components/architecture/Canvas";
 import ChatPanel from "../components/architecture/ChatPanel";
 import NodePicker from "../components/architecture/NodePicker";
 import MetadataPanel from "../components/architecture/MetadataPanel";
-import ReasoningTimeline from "../components/architecture/ReasoningTimeline";
 
 export default function Architecture() {
   const sessionId = useArchitectureStore((s) => s.sessionId);
@@ -32,7 +31,7 @@ export default function Architecture() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-[#0B0B11]">
       {/* Header */}
       <header className="h-12 glass-strong border-b border-white/10 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3">
@@ -57,17 +56,14 @@ export default function Architecture() {
 
       {/* Main: Chat (25%) + Canvas (75%) */}
       <div className="flex-1 flex overflow-hidden">
-        <ChatPanel className="w-[280px] shrink-0" onSendMessage={handleSendMessage} />
+        <ChatPanel className="w-[350px] shrink-0" onSendMessage={handleSendMessage} />
         <ReactFlowProvider>
           <Canvas className="flex-1" />
         </ReactFlowProvider>
       </div>
 
-      {/* Timeline */}
-      <ReasoningTimeline className="h-10 border-y border-white/10 shrink-0" />
-
       {/* Bottom: Node Picker (60%) + Metadata (40%) */}
-      <div className="h-56 flex border-t border-white/10 shrink-0">
+      <div className="h-56 flex border-t border-white/5 shrink-0 bg-[#0B0B11]">
         <NodePicker className="w-[60%]" />
         <div className="w-px bg-white/10" />
         <MetadataPanel className="w-[40%]" onRevalidate={handleRevalidate} />

@@ -81,7 +81,31 @@
     stroke-dasharray: 6 6;
     animation: dash 1.5s linear infinite;
   }
+
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .line-reveal {
+    opacity: 0;
+    transform: translateY(6px);
+    animation: line-reveal 0.35s ease forwards;
+  }
 }
+
+@keyframes line-reveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.react-flow__node.selected > div { outline: none !important; box-shadow: none !important; }
+.react-flow__node:focus { outline: none !important; }
 
 @keyframes dash {
   to {

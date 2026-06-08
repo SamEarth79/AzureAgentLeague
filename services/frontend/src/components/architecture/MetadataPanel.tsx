@@ -1,4 +1,4 @@
-import { DollarSign, AlertTriangle, MapPin } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useArchitectureStore } from "../../stores/architectureStore";
 
 export default function MetadataPanel({
@@ -22,64 +22,50 @@ export default function MetadataPanel({
   const selectedService = architecture.services.find((s) => s.id === selectedNodeId);
 
   if (selectedService) {
-    const iteration = architecture.metadata?.iteration;
+    const configEntries = selectedService.config ? Object.entries(selectedService.config) : [];
 
     return (
-      <div className={`${className} p-4 space-y-3 overflow-y-auto`}>
-        <h3 className="font-semibold text-sm text-foreground">{selectedService.name}</h3>
-        <div className="text-xs text-muted-foreground mb-2">{selectedService.type}</div>
+      <div className={`${className} p-4 space-y-3 overflow-y-auto scrollbar-hide`}>
+        <div>
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">
+            {selectedService.name}
+          </h3>
 
-        {iteration != null && iteration > 0 && (
-          <div className="text-xs text-warning bg-warning/10 border border-warning/20 rounded px-2 py-1">
-            Self-correction iteration: {iteration}/3
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm">
-            <DollarSign size={16} className="text-success" />
-            <span className="text-foreground">
-              {selectedService.cost_estimate != null
-                ? `$${selectedService.cost_estimate}/mo`
-                : "Cost N/A"}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <MapPin size={16} className="text-electric" />
-            <span className="text-foreground">{selectedService.region || "No region set"}</span>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Monthly Cost</div>
+              <div className="text-xl font-bold text-[#f59e0b]">
+                {selectedService.cost_estimate != null ? `$${selectedService.cost_estimate}` : "—"}
+              </div>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Region</div>
+              <div className="text-xl font-bold text-foreground">
+                {selectedService.region || "—"}
+              </div>
+            </div>
+            <div className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-3">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Service Type</div>
+              <div className="text-sm font-semibold text-foreground">{selectedService.type}</div>
+            </div>
           </div>
         </div>
 
         {selectedService.reasoning && (
-          <div className="text-xs bg-white/5 rounded-lg p-3 border border-white/10">
-            <div className="font-semibold text-foreground mb-1">Reasoning</div>
-            <div className="text-muted-foreground">{selectedService.reasoning}</div>
+          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Reasoning</div>
+            <p className="text-xs text-muted-foreground leading-relaxed">{selectedService.reasoning}</p>
           </div>
         )}
 
-        {selectedService.foundry_iq_confidence != null && (
-          <div className="text-xs text-muted-foreground">
-            Foundry IQ confidence: {Math.round(selectedService.foundry_iq_confidence * 100)}%
-          </div>
-        )}
-
-        {selectedService.foundry_iq_docs_link && (
-          <a
-            href={selectedService.foundry_iq_docs_link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-electric hover:underline block"
-          >
-            View Azure Docs →
-          </a>
-        )}
-
-        {selectedService.config && (
-          <div>
-            <div className="text-xs font-semibold text-foreground mb-1">Configuration</div>
-            <pre className="text-xs bg-black/30 p-2.5 rounded-lg overflow-x-auto text-muted-foreground border border-white/10">
-              {JSON.stringify(selectedService.config, null, 2)}
-            </pre>
+        {configEntries.length > 0 && (
+          <div className="grid grid-cols-2 gap-2">
+            {configEntries.map(([key, val]) => (
+              <div key={key} className="bg-white/5 border border-white/10 rounded-lg p-3">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">{key}</div>
+                <div className="text-sm font-semibold text-foreground truncate">{String(val)}</div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -93,7 +79,7 @@ export default function MetadataPanel({
   return (
     <div className={`${className} p-4 space-y-4 overflow-y-auto`}>
       <div>
-        <h3 className="font-semibold text-sm text-foreground mb-3">Architecture Summary</h3>
+        <h3 className="text-[20px] font-bold uppercase tracking-widest mb-3">Architecture Metadata</h3>
 
         {iteration != null && iteration > 0 && (
           <div className="text-xs text-warning bg-warning/10 border border-warning/20 rounded px-2 py-1 mb-3">
@@ -101,36 +87,30 @@ export default function MetadataPanel({
           </div>
         )}
 
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Services</span>
-            <span className="text-foreground font-medium">
-              {architecture.services.length}
-            </span>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Monthly Cost</div>
+            <div className="text-xl font-bold text-[#f59e0b]">
+              ${metadata?.estimated_cost_monthly || "—"}
+            </div>
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Connections</span>
-            <span className="text-foreground font-medium">
-              {architecture.connections.length}
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Est. Cost</span>
-            <span className="text-success font-medium">
-              ${metadata?.estimated_cost_monthly || "—"}/mo
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Latency p95</span>
-            <span className="text-foreground">
+          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">P95 Latency</div>
+            <div className="text-xl font-bold text-[#f59e0b]">
               {metadata?.estimated_latency_p95 || "—"}
-            </span>
+            </div>
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Throughput</span>
-            <span className="text-foreground">
+          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Throughput</div>
+            <div className="text-xl font-bold text-foreground">
               {metadata?.estimated_throughput || "—"}
-            </span>
+            </div>
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Regions</div>
+            <div className="text-xl font-bold text-foreground">
+              {metadata?.regions?.length ?? "—"}
+            </div>
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, List } from "lucide-react";
+import { Send, Loader2, Cpu, Layers, Radio } from "lucide-react";
 import { useArchitectureStore } from "../../stores/architectureStore";
 import ChatMessage from "./ChatMessage";
 
@@ -15,8 +15,6 @@ export default function ChatPanel({
   const messages = useArchitectureStore((s) => s.messages);
   const sessionId = useArchitectureStore((s) => s.sessionId);
   const isConnected = useArchitectureStore((s) => s.isConnected);
-  const detailLevel = useArchitectureStore((s) => s.detailLevel);
-  const setDetailLevel = useArchitectureStore((s) => s.setDetailLevel);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,45 +37,40 @@ export default function ChatPanel({
   };
 
   return (
-    <div className={`${className} flex flex-col bg-background/80`}>
-      <div className="p-4 border-b border-white/10 flex items-center justify-between">
-        <div>
-          <h2 className="font-display font-bold text-lg">Reasoning</h2>
-          <div className="flex items-center gap-2 text-xs">
-            <span
-              className={`h-2 w-2 rounded-full ${
-                isConnected ? "bg-success" : "bg-muted"
-              }`}
-            />
-            <span className="text-muted-foreground">
-              {sessionId === null ? "Ready" : isConnected ? "Connected" : "Connecting..."}
-            </span>
-          </div>
-        </div>
-        <div className="relative">
-          <select
-            value={detailLevel}
-            onChange={(e) =>
-              setDetailLevel(e.target.value as "simple" | "detailed" | "expert")
-            }
-            className="text-xs bg-white/5 border border-white/10 rounded px-2 py-1 text-muted-foreground focus:outline-none focus:border-electric appearance-none pr-6"
-          >
-            <option value="simple">Simple</option>
-            <option value="detailed">Detailed</option>
-            <option value="expert">Expert</option>
-          </select>
-          <List
-            size={12}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-          />
-        </div>
+    <div className={`${className} flex flex-col bg-[#0B0B11]`}>
+      <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
+        <span
+          className={`h-2 w-2 rounded-full shrink-0 ${isConnected ? "bg-success" : "bg-muted"}`}
+        />
+        <span className="text-xs text-muted-foreground">
+          {sessionId === null ? "Ready" : isConnected ? "Connected" : "Connecting..."}
+        </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto scrollbar-hide p-4 space-y-3">
         {messages.length === 0 && (
-          <div className="text-center text-muted-foreground text-sm mt-8">
-            <p>Describe your architecture needs</p>
-            <p className="text-xs mt-1">e.g. "Image processing pipeline for 10k images/min"</p>
+          <div className="mt-6 space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest px-1">Try an example</p>
+            <div className="space-y-2">
+              {([
+                { Icon: Cpu,    color: "#f59e0b", text: "Image processing pipeline for 10k images/min" },
+                { Icon: Layers, color: "#8b5cf6", text: "RAG chatbot grounded in internal documents" },
+                { Icon: Radio,  color: "#14b8a6", text: "IoT telemetry ingestion and analytics pipeline" },
+              ] as const).map(({ Icon, color, text }) => (
+                <button
+                  key={text}
+                  onClick={() => onSendMessage(text)}
+                  className="w-full text-left flex items-start gap-3 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.08] hover:border-white/[0.16] rounded-xl px-3 py-3 transition-colors duration-150 group"
+                >
+                  <div className="mt-0.5 shrink-0 rounded-lg p-1.5" style={{ background: `${color}20` }}>
+                    <Icon size={14} style={{ color }} />
+                  </div>
+                  <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors leading-relaxed">
+                    {text}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {messages.map((msg, idx) => (
