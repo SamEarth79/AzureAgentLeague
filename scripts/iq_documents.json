@@ -243,5 +243,26 @@
     "content": "Azure security patterns: Azure API Management centralizes authentication (OAuth 2.0, JWT validation, API keys), Azure Key Vault stores secrets and certificates, Managed Identity eliminates credential management, Private Endpoints keep traffic off public internet, Azure DDoS Protection guards against volumetric attacks, WAF on Front Door blocks OWASP top 10. Zero trust: verify explicitly, use least privilege, assume breach.",
     "service": "general",
     "category": "patterns"
+  },
+  {
+    "id": "azure-ai-search-pricing",
+    "title": "Azure AI Search Pricing",
+    "content": "Azure AI Search pricing is based on search units (SUs = replicas x partitions). Free tier: 1 SU, 50MB, 10k docs, 3 indexes — $0/month. Basic tier: $0.101/SU/hour = $73.73/SU/month, max 3 replicas x 1 partition. Standard S1: $0.336/SU/hour = $245/SU/month, max 12 replicas x 12 partitions. Standard S2: $1.008/SU/hour = $735/SU/month. Standard S3: $2.016/SU/hour = $1,471/SU/month. Storage Optimized L1: $2.688/SU/hour = $1,962/SU/month. Semantic ranking: included free on Basic+, was previously charged separately. For a single-replica RAG demo: Basic = $73.73/month. For production with 2 replicas (HA): Basic = $147.46/month, S1 = $490/month. For high query load (10k+ req/min): S1 with 3 replicas = $735/month. Rule of thumb: add 1 replica per 36 QPS for Basic, 60 QPS for S1.",
+    "service": "Azure AI Search",
+    "category": "pricing"
+  },
+  {
+    "id": "azure-openai-pricing",
+    "title": "Azure OpenAI Service Pricing",
+    "content": "Azure OpenAI pricing is per 1,000 tokens (input + output billed separately). GPT-4o: $0.005/1K input tokens, $0.015/1K output tokens. GPT-4o mini: $0.000165/1K input, $0.00066/1K output. GPT-4 Turbo: $0.030/1K input, $0.060/1K output. GPT-3.5 Turbo: $0.0005/1K input, $0.0015/1K output. o3-mini: $0.0011/1K input, $0.0044/1K output. Typical RAG request: 1,000 input tokens + 500 output tokens. At 500 req/min (low scale): GPT-4o costs ~$108/month input + $162/month output = $270/month. At same scale GPT-3.5 Turbo costs ~$270/month / 10 = $27/month. Provisioned throughput (PTU) available for high-volume predictable workloads at lower per-token cost.",
+    "service": "Azure OpenAI Service",
+    "category": "pricing"
+  },
+  {
+    "id": "azure-cosmos-pricing-detail",
+    "title": "Azure Cosmos DB Pricing Detail",
+    "content": "Cosmos DB billing modes: Provisioned throughput at $0.008 per 100 RU/s per hour (minimum 400 RU/s = $23.36/month). Autoscale provisioned at $0.012 per 100 RU/s per hour for max RUs. Serverless at $0.25 per million RUs consumed — best for dev/test and low unpredictable traffic. Storage: $0.25/GB/month. Multi-region write multiplies throughput cost by number of regions. At 500 req/min with 10 RU/request: need 83 RU/s → round up to 400 RU/s minimum → $23.36/month provisioned. At 5,000 req/min: 833 RU/s → $40/month. At 50,000 req/min: 8,333 RU/s → $400/month.",
+    "service": "Azure Cosmos DB",
+    "category": "pricing"
   }
 ]

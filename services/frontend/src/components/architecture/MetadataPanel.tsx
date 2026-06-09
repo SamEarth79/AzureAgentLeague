@@ -200,27 +200,27 @@ export default function MetadataPanel({
         )}
 
         <div className="grid grid-cols-2 gap-2">
-          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+          <div className="bg-white/5 border border-white/10 rounded-lg p-3 overflow-hidden">
             <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Monthly Cost</div>
-            <div className="text-xl font-bold text-[#f59e0b]">
+            <div className="text-xl font-bold text-[#f59e0b] truncate">
               ${metadata?.estimated_cost_monthly || "—"}
             </div>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+          <div className="bg-white/5 border border-white/10 rounded-lg p-3 overflow-hidden">
             <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">P95 Latency</div>
-            <div className="text-xl font-bold text-[#f59e0b]">
+            <div className="text-xl font-bold text-[#f59e0b] truncate">
               {metadata?.estimated_latency_p95 || "—"}
             </div>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+          <div className="bg-white/5 border border-white/10 rounded-lg p-3 overflow-hidden">
             <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Throughput</div>
-            <div className="text-xl font-bold text-foreground">
+            <div className="text-xl font-bold text-foreground truncate">
               {metadata?.estimated_throughput || "—"}
             </div>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+          <div className="bg-white/5 border border-white/10 rounded-lg p-3 overflow-hidden">
             <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Regions</div>
-            <div className="text-xl font-bold text-foreground">
+            <div className="text-xl font-bold text-foreground truncate">
               {metadata?.regions?.length ?? "—"}
             </div>
           </div>

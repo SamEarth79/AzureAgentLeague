@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useRef, useEffect } from "react";
+import { useMemo, useCallback, useRef, useEffect, useState } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -8,7 +8,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { toPng } from "html-to-image";
-import { FileJson, FileImage, X } from "lucide-react";
+import { FileJson, FileImage, X, BookOpen, Download } from "lucide-react";
 import { useArchitectureStore } from "../../stores/architectureStore";
 import { getLayoutedElements } from "../../lib/layoutEngine";
 import { SERVICE_CATALOG } from "../../lib/serviceCatalog";
@@ -34,6 +34,8 @@ export default function Canvas({ className }: { className?: string }) {
 
   const instance = useReactFlow();
   const rfWrapperRef = useRef<HTMLDivElement>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const hasContent = architecture && architecture.services.length > 0;
   const serviceIds = architecture?.services.map((s) => s.id).join(",") ?? "";
 
@@ -176,12 +178,6 @@ export default function Canvas({ className }: { className?: string }) {
 
   return (
     <div className={className} style={{ background: "#151415" }}>
-      {!hasContent && (
-        <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-xs text-muted-foreground/40 z-10 pointer-events-none">
-          Drop Azure services from the panel below onto the canvas
-        </p>
-      )}
-
       {failureSimResult && (
         <div className="absolute top-3 left-3 z-20 flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 backdrop-blur-sm px-3 py-2">
           <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
@@ -198,68 +194,97 @@ export default function Canvas({ className }: { className?: string }) {
         </div>
       )}
 
-      {/* Legend */}
-      <div className="absolute top-3 right-3 z-10 rounded-xl border border-white/[0.08] bg-[#111118]/90 backdrop-blur-sm px-3 py-2.5 space-y-2.5 pointer-events-none">
-        <div>
-          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Edges</p>
-          <div className="space-y-1">
-            {[
-              { color: "#00d4ff", label: "Sync",         dash: false },
-              { color: "#f59e0b", label: "Async",        dash: true  },
-              { color: "#8b5cf6", label: "Event-driven", dash: true  },
-            ].map(({ color, label, dash }) => (
-              <div key={label} className="flex items-center gap-2">
-                <svg width="20" height="8">
-                  <line
-                    x1="0" y1="4" x2="20" y2="4"
-                    stroke={color}
-                    strokeWidth="1.5"
-                    strokeDasharray={dash ? "4 3" : undefined}
-                  />
-                </svg>
-                <span className="text-[10px] text-muted-foreground">{label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="border-t border-white/[0.06] pt-2">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Nodes</p>
-          <div className="space-y-1">
-            {[
-              { color: "#f59e0b", label: "Compute"    },
-              { color: "#14b8a6", label: "Storage"    },
-              { color: "#ef4444", label: "Messaging"  },
-              { color: "#8b5cf6", label: "AI"         },
-              { color: "#00d4ff", label: "Networking" },
-              { color: "#6366f1", label: "Database"   },
-            ].map(({ color, label }) => (
-              <div key={label} className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full shrink-0" style={{ background: color }} />
-                <span className="text-[10px] text-muted-foreground">{label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* Top-right controls: Legend + Export */}
+      <div className="absolute top-2 right-3 z-20 flex gap-2">
 
-      {/* Export */}
-      <div className="absolute top-3 right-3 z-20 flex gap-2">
-        <button
-          onClick={exportJSON}
-          disabled={!hasContent}
-          className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[#111118]/90 backdrop-blur-sm px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:border-white/20 transition disabled:opacity-30 disabled:pointer-events-none"
-        >
-          <FileJson size={14} />
-          JSON
-        </button>
-        <button
-          onClick={exportPNG}
-          disabled={!hasContent}
-          className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[#111118]/90 backdrop-blur-sm px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:border-white/20 transition disabled:opacity-30 disabled:pointer-events-none"
-        >
-          <FileImage size={14} />
-          PNG
-        </button>
+        {/* Legend button + dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => { setLegendOpen((o) => !o); setExportOpen(false); }}
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs backdrop-blur-sm transition ${
+              legendOpen
+                ? "border-white/20 bg-[#111118] text-foreground"
+                : "border-white/[0.08] bg-[#111118]/90 text-muted-foreground hover:text-foreground hover:border-white/20"
+            }`}
+          >
+            <BookOpen size={13} />
+            Legend
+          </button>
+          {legendOpen && (
+            <div className="absolute top-full right-0 mt-1.5 rounded-xl border border-white/[0.08] bg-[#111118]/95 backdrop-blur-sm px-3 py-2.5 space-y-2.5 w-40">
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Edges</p>
+                <div className="space-y-1">
+                  {[
+                    { color: "#00d4ff", label: "Sync",         dash: false },
+                    { color: "#f59e0b", label: "Async",        dash: true  },
+                    { color: "#8b5cf6", label: "Event-driven", dash: true  },
+                  ].map(({ color, label, dash }) => (
+                    <div key={label} className="flex items-center gap-2">
+                      <svg width="20" height="8" className="shrink-0">
+                        <line x1="0" y1="4" x2="20" y2="4" stroke={color} strokeWidth="1.5" strokeDasharray={dash ? "4 3" : undefined} />
+                      </svg>
+                      <span className="text-[10px] text-muted-foreground">{label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="border-t border-white/[0.06] pt-2">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Nodes</p>
+                <div className="space-y-1">
+                  {[
+                    { color: "#f59e0b", label: "Compute"    },
+                    { color: "#14b8a6", label: "Storage"    },
+                    { color: "#ef4444", label: "Messaging"  },
+                    { color: "#8b5cf6", label: "AI"         },
+                    { color: "#00d4ff", label: "Networking" },
+                    { color: "#6366f1", label: "Database"   },
+                  ].map(({ color, label }) => (
+                    <div key={label} className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full shrink-0" style={{ background: color }} />
+                      <span className="text-[10px] text-muted-foreground">{label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Export button + dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => { setExportOpen((o) => !o); setLegendOpen(false); }}
+            disabled={!hasContent}
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs backdrop-blur-sm transition disabled:opacity-30 disabled:pointer-events-none ${
+              exportOpen
+                ? "border-white/20 bg-[#111118] text-foreground"
+                : "border-white/[0.08] bg-[#111118]/90 text-muted-foreground hover:text-foreground hover:border-white/20"
+            }`}
+          >
+            <Download size={13} />
+            Export
+          </button>
+          {exportOpen && (
+            <div className="absolute top-full right-0 mt-1.5 rounded-xl border border-white/[0.08] bg-[#111118]/95 backdrop-blur-sm py-1 w-36">
+              <button
+                onClick={() => { exportJSON(); setExportOpen(false); }}
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition"
+              >
+                <FileJson size={13} />
+                JSON
+              </button>
+              <button
+                onClick={() => { exportPNG(); setExportOpen(false); }}
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition"
+              >
+                <FileImage size={13} />
+                PNG
+              </button>
+            </div>
+          )}
+        </div>
+
       </div>
 
       <div ref={rfWrapperRef} style={{ width: "100%", height: "100%" }}>

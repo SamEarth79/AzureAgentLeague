@@ -59,12 +59,6 @@ export default function Architecture() {
             <span className="font-display font-bold text-sm text-foreground">ArchMind</span>
           </Link>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] text-muted-foreground hidden md:inline">
-            Built with React + React Flow + LangGraph + Azure Foundry
-          </span>
-          <Zap size={14} className="text-electric-soft" />
-        </div>
       </header>
 
       {/* Main: Chat (25%) + Canvas (75%) */}

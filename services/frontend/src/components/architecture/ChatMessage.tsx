@@ -1,7 +1,73 @@
+import React from "react";
 import type { Message } from "../../types/architecture";
 import ClarificationCard from "./ClarificationCard";
 import ValidationFixCard from "./ValidationFixCard";
 import { useArchitectureStore } from "../../stores/architectureStore";
+
+function renderInline(text: string): React.ReactNode {
+  // Render **bold** and `code` spans within a line
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**"))
+      return <strong key={i} className="text-foreground/90 font-semibold">{part.slice(2, -2)}</strong>;
+    if (part.startsWith("`") && part.endsWith("`"))
+      return <code key={i} className="px-1 py-0.5 rounded text-[11px] font-mono bg-white/[0.08] text-foreground/80">{part.slice(1, -1)}</code>;
+    return part;
+  });
+}
+
+function MarkdownBlock({ content }: { content: string }) {
+  const lines = content.split("\n");
+  const elements: React.ReactNode[] = [];
+  let key = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      // blank line → small spacer only if not consecutive
+      const prev = elements[elements.length - 1];
+      if (prev) elements.push(<div key={key++} className="h-1.5" />);
+      continue;
+    }
+
+    if (trimmed.startsWith("### ")) {
+      elements.push(
+        <p key={key++} className="text-[11.5px] font-semibold uppercase tracking-wider mt-3 mb-0.5" style={{ color: "#8b5cf6" }}>
+          {renderInline(trimmed.slice(4))}
+        </p>
+      );
+    } else if (trimmed.startsWith("## ")) {
+      elements.push(
+        <p key={key++} className="text-[13px] font-bold mt-3 mb-1" style={{ color: "#c4b5fd" }}>
+          {renderInline(trimmed.slice(3))}
+        </p>
+      );
+    } else if (trimmed.startsWith("# ")) {
+      elements.push(
+        <p key={key++} className="text-[14px] font-bold mt-1 mb-1.5" style={{ color: "#e9d5ff" }}>
+          {renderInline(trimmed.slice(2))}
+        </p>
+      );
+    } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      elements.push(
+        <div key={key++} className="flex gap-1.5 text-[12.5px] leading-relaxed text-foreground/75">
+          <span className="shrink-0 mt-0.5" style={{ color: "#8b5cf6" }}>·</span>
+          <span>{renderInline(trimmed.slice(2))}</span>
+        </div>
+      );
+    } else {
+      elements.push(
+        <p key={key++} className="text-[12.5px] leading-relaxed text-foreground/75">
+          {renderInline(trimmed)}
+        </p>
+      );
+    }
+  }
+
+  return <div className="space-y-0.5">{elements}</div>;
+}
 
 const STEP_COLORS: Record<string, string> = {
   parsing:    "#00d4ff",
@@ -28,15 +94,8 @@ function StepMessage({ message }: { message: Message }) {
   const color = STEP_COLORS[step] || "#94a3b8";
   const label = STEP_LABELS[step] || step;
 
-  // Split into sentences for line-by-line reveal
-  const lines = message.content
-    .split(/(?<=\.)\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
   return (
     <div className="flex gap-3 py-1">
-      {/* Colored dot */}
       <div className="mt-1.5 shrink-0">
         <div
           className="h-2 w-2 rounded-full"
@@ -45,26 +104,10 @@ function StepMessage({ message }: { message: Message }) {
       </div>
 
       <div className="flex-1 min-w-0">
-        {/* Step label */}
-        <div
-          className="text-sm font-bold mb-1"
-          style={{ color }}
-        >
+        <div className="text-sm font-bold mb-1" style={{ color }}>
           {label}
         </div>
-
-        {/* Content — line by line reveal */}
-        <div className="space-y-0.5">
-          {lines.map((line, i) => (
-            <p
-              key={i}
-              className="text-[12.5px] leading-relaxed text-foreground/75 line-reveal"
-              style={{ animationDelay: `${i * 1000}ms` }}
-            >
-              {line}
-            </p>
-          ))}
-        </div>
+        <MarkdownBlock content={message.content} />
       </div>
     </div>
   );
@@ -142,16 +185,16 @@ export default function ChatMessage({ message }: { message: Message }) {
     );
   }
 
-  // Architecture summary — LLM-generated explanation
+  // Architecture summary — LLM-generated explanation with markdown rendering
   if (message.type === "summary") {
     return (
       <div className="flex gap-3 py-1">
         <div className="mt-1.5 shrink-0">
           <div className="h-2 w-2 rounded-full" style={{ background: "#8b5cf6", boxShadow: "0 0 6px 1px #8b5cf666" }} />
         </div>
-        <div>
-          <div className="text-sm font-bold mb-1" style={{ color: "#8b5cf6" }}>ArchMind</div>
-          <p className="text-[12.5px] leading-relaxed text-foreground/75 whitespace-pre-wrap">{message.content}</p>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-bold mb-2" style={{ color: "#8b5cf6" }}>ArchMind</div>
+          <MarkdownBlock content={message.content} />
         </div>
       </div>
     );
@@ -193,7 +236,7 @@ export default function ChatMessage({ message }: { message: Message }) {
 
   // Clarification needed
   if (message.type === "clarification_needed") {
-    const awaiting = useArchitectureStore.getState().awaitingClarification;
+    const awaiting = useArchitectureStore((s) => s.awaitingClarification);
     const frozen = awaiting === null;
     return (
       <div className="space-y-3 py-2">
@@ -206,10 +249,8 @@ export default function ChatMessage({ message }: { message: Message }) {
             <p className="text-[12.5px] text-foreground/75 mb-2">{message.content}</p>
           </div>
         </div>
-        <div className="space-y-3 pl-7">
-          {(message.questions || []).map((q) => (
-            <ClarificationCard key={q.id} question={q} frozen={frozen} />
-          ))}
+        <div className="pl-7">
+          <ClarificationCard questions={message.questions || []} frozen={frozen} />
         </div>
       </div>
     );

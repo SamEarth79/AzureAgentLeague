@@ -7,7 +7,8 @@ field uses an `add` reducer so appended messages accumulate across nodes.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+import re
+from typing import Any, Dict, List, Optional
 
 from langchain_core.messages import AIMessage
 
@@ -20,6 +21,7 @@ from ..models.domain import (
 )
 from .state import AgentState
 from .tools import (
+    append_to_session,
     SERVICE_CATALOG,
     build_architecture_metadata,
     call_deepseek,
@@ -140,10 +142,39 @@ def _detect_intent(text: str) -> Dict[str, Any]:
         region = region_match
 
     scale = None
+    req_per_min: Optional[float] = None
+
+    # Try to extract an explicit number first (e.g. "10k req/min", "50000 requests")
+    num_match = re.search(r"(\d+(?:\.\d+)?)\s*k?\s*(?:req|request|rps|rpm|/min|per min)", lower)
+    if num_match:
+        val = float(num_match.group(1))
+        if "k" in lower[num_match.start():num_match.end()]:
+            val *= 1000
+        req_per_min = val
+
     if any(t in lower for t in ("10k", "10000", "high scale", "millions", "burst")):
         scale = "high"
+        if req_per_min is None:
+            req_per_min = 10_000.0
     elif any(t in lower for t in ("small", "demo", "prototype", "low traffic")):
         scale = "low"
+        if req_per_min is None:
+            req_per_min = 500.0
+
+    # Map clarification option strings to req_per_min
+    if req_per_min is None:
+        if "very high" in lower or "100k+" in lower or "100k +" in lower:
+            scale = "very_high"
+            req_per_min = 200_000.0
+        elif "high" in lower and ("10k" in lower or "100k" in lower):
+            scale = "high"
+            req_per_min = 50_000.0
+        elif "medium" in lower or ("1k" in lower and "10k" in lower):
+            scale = "medium"
+            req_per_min = 5_000.0
+        elif "low" in lower or "1k" in lower:
+            scale = "low"
+            req_per_min = 500.0
 
     return {
         "workload": workload,
@@ -151,6 +182,7 @@ def _detect_intent(text: str) -> Dict[str, Any]:
         "refinements": refinements,
         "region": region,
         "scale": scale,
+        "req_per_min": req_per_min,
     }
 
 
@@ -158,6 +190,7 @@ def _empty_requirements() -> Dict[str, Any]:
     return {
         "workload": "",
         "scale": "",
+        "req_per_min": None,
         "budget": None,
         "region": "",
         "refinements": [],
@@ -509,6 +542,32 @@ def _apply_refinement(
     return notes
 
 
+_CLASSIFY_SYSTEM = """You are a routing classifier for an AI cloud architect tool.
+
+Classify the user message as exactly one of:
+- "chat"        — the user is asking a question, wanting an explanation, or requesting information (e.g. "what is Cosmos DB?", "why did you choose Functions?", "explain the tradeoffs")
+- "architecture" — the user wants to design, generate, modify, refine, or update an architecture (e.g. "build me a pipeline", "make it cheaper", "add a load balancer", "switch to serverless")
+
+If a current architecture exists, lean toward "architecture" for any message that could be a modification request, even if phrased as a question (e.g. "can you make this more reliable?" → architecture).
+
+Reply with ONLY the single word: chat  OR  architecture"""
+
+
+async def _classify_intent(user_message: str, has_existing_architecture: bool, session_id: Optional[str] = None) -> bool:
+    """Returns True if the message is a chat/Q&A question, False if it's an architecture request."""
+    context = "A current architecture exists." if has_existing_architecture else "No architecture exists yet."
+    raw = await call_deepseek(
+        _CLASSIFY_SYSTEM,
+        f"{context}\n\nUser message: {user_message}",
+        session_id=session_id,
+        update_history=False,
+    )
+    result = (raw or "").strip().lower()
+    logger.info("[classify_intent] message=%r result=%r", user_message[:60], result)
+    # Default to architecture on any ambiguity or LLM failure
+    return result == "chat"
+
+
 async def parse_requirements_node(state: AgentState) -> Dict[str, Any]:
     _ensure_catalog()
     user_message = state.get("user_message", "")
@@ -531,9 +590,15 @@ async def parse_requirements_node(state: AgentState) -> Dict[str, Any]:
             if inferred != "web_api":
                 intent["workload"] = inferred
 
+    # Inherit req_per_min from existing architecture's requirements if refining
+    existing_req_per_min = None
+    if is_refinement and state.get("user_requirements"):
+        existing_req_per_min = state["user_requirements"].get("req_per_min")
+
     requirements = {
         "workload": intent["workload"],
         "scale": intent["scale"],
+        "req_per_min": intent["req_per_min"] or existing_req_per_min,
         "budget": None,
         "region": intent["region"],
         "refinements": intent["refinements"],
@@ -590,18 +655,9 @@ async def parse_requirements_node(state: AgentState) -> Dict[str, Any]:
             f"Generating new architecture."
         )
 
-    _CHAT_SIGNALS = [
-        "what is", "what are", "what does", "what's",
-        "explain", "describe", "tell me about",
-        "how does", "how do", "how is",
-        "difference between", "compare", " vs ",
-        "why use", "when to use", "should i use",
-        "can you explain",
-    ]
-    lower_msg = user_message.lower()
-    is_chat = any(sig in lower_msg for sig in _CHAT_SIGNALS)
-    if is_clarification_response or is_validation_response:
-        is_chat = False
+    is_chat = False
+    if not is_clarification_response and not is_validation_response:
+        is_chat = await _classify_intent(user_message, existing is not None, session_id=state.get("session_id"))
 
     return {
         "status": "parsing",
@@ -677,7 +733,7 @@ async def chat_qa_node(state: AgentState) -> Dict[str, Any]:
         + f"Relevant Azure docs:\n{iq_result}"
     )
 
-    answer = await call_deepseek(system, user_prompt)
+    answer = await call_deepseek(system, user_prompt, session_id=state.get("session_id"), update_history=True)
     if not answer:
         answer = (
             "I can help with Azure architecture questions — try asking about specific services, "
@@ -747,7 +803,7 @@ Rules:
 - Do not invent service types not in the allowed list."""
 
 
-async def _llm_blueprint(user_description: str, iq_context: str, region: str) -> List[Dict]:
+async def _llm_blueprint(user_description: str, iq_context: str, region: str, session_id: Optional[str] = None) -> List[Dict]:
     """Call DeepSeek to select services. Returns blueprint tuples or empty list on failure."""
     import json as _json
     logger.info("[LLM] _llm_blueprint called: desc=%r iq_len=%d", user_description[:80], len(iq_context))
@@ -760,7 +816,7 @@ async def _llm_blueprint(user_description: str, iq_context: str, region: str) ->
     )
     raw = ""
     try:
-        raw = await call_deepseek(_DEEPSEEK_SYSTEM, user_prompt)
+        raw = await call_deepseek(_DEEPSEEK_SYSTEM, user_prompt, session_id=session_id, update_history=True)
     except Exception as exc:
         logger.warning("Failed to call DeepSeek: %s", exc)
         return []
@@ -803,6 +859,7 @@ async def reason_and_select_node(state: AgentState) -> Dict[str, Any]:
     region = reqs.get("region") or DEFAULT_REGION
     refinements = reqs.get("refinements") or []
     existing = state.get("existing_architecture")
+    session_id = state.get("session_id")
 
     if existing is not None:
         # Extract IQ context from state messages
@@ -829,7 +886,7 @@ async def reason_and_select_node(state: AgentState) -> Dict[str, Any]:
             f"Target region: {region}\n\n"
             "Return the updated JSON array of ALL services now."
         )
-        raw = await call_deepseek(llm_system, llm_prompt)
+        raw = await call_deepseek(llm_system, llm_prompt, session_id=session_id, update_history=True)
         blueprint = []
         if raw:
             raw = raw.strip()
@@ -876,7 +933,7 @@ async def reason_and_select_node(state: AgentState) -> Dict[str, Any]:
         print(f"[DEBUG] user_desc: {user_desc}")
         print(f"[DEBUG] iq_context: {iq_context}")
         print(f"[DEBUG] region: {region}")
-        blueprint = await _llm_blueprint(user_desc, iq_context, region)
+        blueprint = await _llm_blueprint(user_desc, iq_context, region, session_id=session_id)
         print(f"[DEBUG] blueprint: {blueprint}")
 
         if not blueprint:
@@ -1058,8 +1115,10 @@ async def ask_validation_fixes_node(state: AgentState) -> Dict[str, Any]:
 async def estimate_cost_performance_node(state: AgentState) -> Dict[str, Any]:
     services = state.get("selected_services") or []
     connections = state.get("connections") or []
-    cost = await estimate_cost(services)
-    perf = await estimate_performance(services, connections)
+    reqs = state.get("user_requirements") or {}
+    req_per_min = float(reqs.get("req_per_min") or 500.0)
+    cost = await estimate_cost(services, req_per_min)
+    perf = await estimate_performance(services, connections, req_per_min)
     metadata = build_architecture_metadata(services, connections, cost, perf)
 
     summary = (
@@ -1094,9 +1153,15 @@ async def generate_output_node(state: AgentState) -> Dict[str, Any]:
 
     system = (
         "You are ArchMind, an Azure cloud architect. "
-        "Write a concise 3-4 sentence summary of the architecture you just designed. "
-        "Cover: what the architecture does, the key services chosen and why, and any notable tradeoffs or risks. "
-        "Be specific — mention service names. No bullet points, no markdown headers."
+        "Write a structured summary of the architecture you just designed using markdown.\n\n"
+        "Format:\n"
+        "# <one-line title describing what this architecture does>\n\n"
+        "A 2-3 sentence paragraph explaining the overall design and how the services fit together.\n\n"
+        "## Key Decisions\n"
+        "2-3 bullet points (- ...) explaining the most important service choices and why — mention service names and tradeoffs.\n\n"
+        "## Risks & Tradeoffs\n"
+        "1-2 bullet points covering the main risks or cost/performance tradeoffs to be aware of.\n\n"
+        "Use **bold** for service names. Be specific and concise. No more than 150 words total."
     )
     user_prompt = (
         f"Services selected:\n{service_lines}\n\n"
@@ -1106,7 +1171,7 @@ async def generate_output_node(state: AgentState) -> Dict[str, Any]:
         + "\nWrite the summary now."
     )
 
-    summary_text = await call_deepseek(system, user_prompt)
+    summary_text = await call_deepseek(system, user_prompt, session_id=state.get("session_id"), update_history=True)
     if not summary_text:
         summary_text = (
             "Architecture designed with "
