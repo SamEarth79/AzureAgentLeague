@@ -20,12 +20,15 @@ from .state import AgentState
 
 logger = logging.getLogger(__name__)
 
+ENABLE_DELAYS: bool = False
+
 NODE_TO_STEP: Dict[str, str] = {
     "parse": "parsing",
     "request_clarification": "asking_clarification",
     "query": "querying",
     "reason": "reasoning",
     "validate": "validating",
+    "ask_validation_fixes": "asking_fixes",
     "self_correct": "self_correcting",
     "estimate": "estimating",
     "output": "complete",
@@ -37,6 +40,7 @@ NODE_DELAYS: Dict[str, float] = {
     "query":                 2.5,
     "reason":                3.0,
     "validate":              2.0,
+    "ask_validation_fixes":  1.0,
     "self_correct":          2.0,
     "estimate":              2.0,
     "output":                1.0,
@@ -49,6 +53,7 @@ DEFAULT_REASONING: Dict[str, str] = {
     "query": "Querying Foundry IQ...",
     "reason": "Selecting Azure services...",
     "validate": "Validating architecture...",
+    "ask_validation_fixes": "Reviewing validation results...",
     "self_correct": "Applying fixes to the architecture...",
     "estimate": "Calculating cost and performance...",
     "output": "Finalizing architecture...",
@@ -129,7 +134,7 @@ async def stream_agent_events(
                 continue
 
             delay = NODE_DELAYS.get(node_name, step_delay)
-            if delay > 0:
+            if ENABLE_DELAYS and delay > 0:
                 await asyncio.sleep(delay)
 
             step = NODE_TO_STEP.get(node_name, node_name)
@@ -156,8 +161,20 @@ async def stream_agent_events(
                 "missing_fields": list(final_state.get("pending_missing_fields") or []),
             },
         )
-    else:
-        await _maybe_await_sender(sender, _build_architecture_event(final_state))
-        await _maybe_await_sender(sender, {"type": "complete"})
+        return final_state
+
+    pending_fixes = list(final_state.get("pending_validation_fixes") or [])
+    if pending_fixes:
+        await _maybe_await_sender(
+            sender,
+            {
+                "type": "validation_fixes_needed",
+                "fixes": pending_fixes,
+            },
+        )
+        return final_state
+
+    await _maybe_await_sender(sender, _build_architecture_event(final_state))
+    await _maybe_await_sender(sender, {"type": "complete"})
 
     return final_state

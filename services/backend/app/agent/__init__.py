@@ -43,6 +43,8 @@ async def run_agent(
     *,
     is_clarification_response: bool = False,
     original_prompt: Optional[str] = None,
+    is_validation_response: bool = False,
+    validation_fix_choices: Optional[Dict[str, bool]] = None,
     step_delay: float = 0.2,
 ) -> AgentState:
     """Run the ArchMind agent for one user turn.
@@ -67,6 +69,12 @@ async def run_agent(
     original_prompt : str, optional
         The user's original request before clarification was requested.
         Used to merge the answer back into a complete requirements set.
+    is_validation_response : bool
+        True when this message is the user's answer to a previous
+        validation fixes request. The self_correct node will apply
+        only the fixes the user approved.
+    validation_fix_choices : dict, optional
+        Mapping of fix category → bool (True=apply fix, False=skip).
     step_delay : float
         Seconds to pause between events for nicer streaming UX.
 
@@ -90,6 +98,9 @@ async def run_agent(
             "pending_missing_fields": [],
             "is_clarification_response": is_clarification_response,
             "original_prompt": original_prompt,
+            "pending_validation_fixes": [],
+            "is_validation_response": is_validation_response,
+            "validation_fix_choices": validation_fix_choices or {},
         }
 
     logger.info(

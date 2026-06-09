@@ -12,7 +12,8 @@ import MetadataPanel from "../components/architecture/MetadataPanel";
 export default function Architecture() {
   const sessionId = useArchitectureStore((s) => s.sessionId);
   const setPendingMessage = useArchitectureStore((s) => s.setPendingMessage);
-  const { sendMessage } = useWebSocket(sessionId);
+  const addMessage = useArchitectureStore((s) => s.addMessage);
+  const { sendMessage, sendRaw, sendFailureSim } = useWebSocket(sessionId);
   const { startSession } = useSession();
 
   const handleSendMessage = async (content: string) => {
@@ -24,10 +25,22 @@ export default function Architecture() {
     sendMessage(content);
   };
 
+  const architecture = useArchitectureStore((s) => s.architecture);
+
   const handleRevalidate = () => {
-    if (sessionId) {
-      sendMessage("Re-validate this architecture");
+    if (sessionId && architecture) {
+      sendRaw(JSON.stringify({ type: "revalidate_manual", architecture }));
+      addMessage({
+        role: "user",
+        type: "reasoning",
+        content: "Re-validate",
+      });
     }
+  };
+
+  const selectedNodeId = useArchitectureStore((s) => s.selectedNodeId);
+  const handleSimulateFailure = () => {
+    if (selectedNodeId) sendFailureSim(selectedNodeId);
   };
 
   return (
@@ -66,7 +79,7 @@ export default function Architecture() {
       <div className="h-56 flex border-t border-white/5 shrink-0 bg-[#0B0B11]">
         <NodePicker className="w-[60%]" />
         <div className="w-px bg-white/10" />
-        <MetadataPanel className="w-[40%]" onRevalidate={handleRevalidate} />
+        <MetadataPanel className="w-[40%]" onRevalidate={handleRevalidate} onSimulateFailure={handleSimulateFailure} />
       </div>
     </div>
   );

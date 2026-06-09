@@ -46,10 +46,43 @@ export interface Architecture {
   warnings: Warning[];
 }
 
+export interface FailureImpact {
+  id: string;
+  name: string;
+  severity: "direct_failure" | "degraded" | "delayed_impact";
+  reason: string;
+}
+
+export interface FailureSimResult {
+  failed_service_id: string;
+  failed_service_name: string;
+  impacted: FailureImpact[];
+  unaffected_count: number;
+  overall_status: "full_outage" | "partial_outage" | "degraded";
+  summary: string;
+}
+
+export interface ClarificationQuestion {
+  id: string;
+  question: string;
+  options: string[];
+}
+
+export interface ValidationFixProposal {
+  fix_id: string;
+  warning_message: string;
+  suggested_fix: string;
+  category: string;
+  affected_services: string[];
+}
+
 export interface Message {
   role: "user" | "assistant" | "system";
-  type: "reasoning" | "tool_call" | "tool_result" | "warning" | "architecture" | "complete";
+  type: "reasoning" | "tool_call" | "tool_result" | "warning" | "architecture" | "complete" | "clarification_needed" | "validation_fixes_needed";
   content: string;
   step?: string;
   data?: any;
+  questions?: ClarificationQuestion[];
+  missing_fields?: string[];
+  fixes?: ValidationFixProposal[];
 }

@@ -33,7 +33,11 @@ class AgentState(TypedDict, total=False):
     existing_architecture: Optional[Architecture]
     user_message: str
 
-    pending_clarifications: List[str]
+    pending_clarifications: List[Dict[str, Any]]
     pending_missing_fields: List[str]
     is_clarification_response: bool
     original_prompt: Optional[str]
+
+    pending_validation_fixes: List[Dict[str, Any]]
+    is_validation_response: bool
+    validation_fix_choices: Dict[str, bool]

@@ -12,6 +12,7 @@ from __future__ import annotations
 from langgraph.graph import END, StateGraph
 
 from .nodes import (
+    ask_validation_fixes_node,
     estimate_cost_performance_node,
     generate_output_node,
     parse_requirements_node,
@@ -31,12 +32,20 @@ def _route_after_parse(state: AgentState) -> str:
 
 
 def _route_after_validate(state: AgentState) -> str:
-    return "estimate" if state.get("validation_passed") else "self_correct"
+    if state.get("validation_passed"):
+        return "estimate"
+    high_warnings = [w for w in (state.get("warnings") or []) if w.severity == "high"]
+    # For refinement and re-validate runs, skip asking the user and just self-correct
+    if high_warnings and not state.get("is_validation_response") and not state.get("is_refinement"):
+        return "ask_validation_fixes"
+    return "self_correct"
 
 
 def _route_after_self_correct(state: AgentState) -> str:
     iteration = int(state.get("iteration", 0))
     validation_passed = bool(state.get("validation_passed"))
+    if state.get("is_validation_response"):
+        return "estimate"
     if (not validation_passed) and iteration < MAX_SELF_CORRECTIONS:
         return "validate"
     return "estimate"
@@ -50,6 +59,7 @@ def build_graph() -> StateGraph:
     g.add_node("query", query_foundry_iq_node)
     g.add_node("reason", reason_and_select_node)
     g.add_node("validate", validate_architecture_node)
+    g.add_node("ask_validation_fixes", ask_validation_fixes_node)
     g.add_node("self_correct", self_correct_node)
     g.add_node("estimate", estimate_cost_performance_node)
     g.add_node("output", generate_output_node)
@@ -66,8 +76,9 @@ def build_graph() -> StateGraph:
     g.add_conditional_edges(
         "validate",
         _route_after_validate,
-        {"self_correct": "self_correct", "estimate": "estimate"},
+        {"ask_validation_fixes": "ask_validation_fixes", "self_correct": "self_correct", "estimate": "estimate"},
     )
+    g.add_edge("ask_validation_fixes", END)
     g.add_conditional_edges(
         "self_correct",
         _route_after_self_correct,

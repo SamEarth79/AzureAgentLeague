@@ -36,21 +36,34 @@ REFINEMENT_KEYWORDS = {
     "cost": "cost",
     "less expensive": "cost",
     "save money": "cost",
+    "reduce cost": "cost",
+    "reduce": "cost",
+    "budget": "cost",
+    "expensive": "cost",
     "faster": "latency",
     "low latency": "latency",
     "speed": "latency",
     "snappy": "latency",
+    "cach": "latency",
+    "performance": "latency",
     "reliable": "ha",
     "redundan": "ha",
     "ha": "ha",
     "failover": "ha",
     "global": "ha",
     "multi-region": "ha",
+    "high avail": "ha",
+    "add redundan": "ha",
+    "disaster": "ha",
     "secure": "security",
     "compliance": "security",
+    "auth": "security",
+    "zero trust": "security",
     "scale": "scale",
     "scalable": "scale",
     "more capacity": "scale",
+    "traffic spike": "scale",
+    "autoscal": "scale",
 }
 
 WORKLOAD_KEYWORDS = {
@@ -74,6 +87,8 @@ WORKLOAD_KEYWORDS = {
     "k8s": "microservices",
     "microservice": "microservices",
     "serverless": "serverless",
+    "etl": "etl",
+    "pipeline": "etl",
 }
 
 DEFAULT_REGION = "eastus"
@@ -83,9 +98,11 @@ SECONDARY_REGION = "westus2"
 def _detect_intent(text: str) -> Dict[str, Any]:
     lower = text.lower()
     workload = "web_api"
+    workload_matched = False
     for kw, label in WORKLOAD_KEYWORDS.items():
         if kw in lower:
             workload = label
+            workload_matched = True
             break
 
     refinements: List[str] = []
@@ -95,25 +112,32 @@ def _detect_intent(text: str) -> Dict[str, Any]:
                 refinements.append(label)
 
     region = None
+    # Normalize spaces/dashes so "East US" matches "eastus"
+    normalized = lower.replace(" ", "").replace("-", "").replace("_", "")
     region_match = next(
         (
             r
             for r in (
                 "eastus",
                 "westus2",
+                "westus",
                 "westeurope",
                 "japaneast",
                 "australiaeast",
                 "centralus",
+                "southeastasia",
+                "uksouth",
+                "northeurope",
+                "eastus2",
             )
-            if r in lower
+            if r in normalized
         ),
         None,
     )
     if region_match:
         region = region_match
 
-    scale = "medium"
+    scale = None
     if any(t in lower for t in ("10k", "10000", "high scale", "millions", "burst")):
         scale = "high"
     elif any(t in lower for t in ("small", "demo", "prototype", "low traffic")):
@@ -121,6 +145,7 @@ def _detect_intent(text: str) -> Dict[str, Any]:
 
     return {
         "workload": workload,
+        "workload_matched": workload_matched,
         "refinements": refinements,
         "region": region,
         "scale": scale,
@@ -182,6 +207,13 @@ def _architecture_blueprint(workload: str) -> List[Dict[str, Any]]:
             ("Azure Functions", {"plan": "consumption"}, "API Backend", "Serverless REST API."),
             ("Azure Cosmos DB", {"multi_region": False}, "Data Store", "Low-latency NoSQL store."),
             ("Azure Blob Storage", {"tier": "Cool"}, "File Store", "Cheap object storage."),
+        ]
+    if workload == "etl":
+        return [
+            ("Azure Functions", {"plan": "consumption", "runtime": "python"}, "ETL Orchestrator", "Orchestrates the ETL pipeline tasks."),
+            ("Azure Blob Storage", {"tier": "Hot"}, "Raw Data Lake", "Stores raw ingested data."),
+            ("Azure SQL Database", {"tier": "Standard"}, "Transformed Store", "Stores transformed data for querying."),
+            ("Azure Monitor", {}, "Pipeline Monitoring", "Tracks pipeline health and metrics."),
         ]
     if workload == "global":
         return [
@@ -267,7 +299,7 @@ def _apply_refinement(
         for s in services:
             if s.type == "Azure Blob Storage" and s.config.get("tier") == "Hot":
                 s.config["tier"] = "Cool"
-                s.cost_estimate = max(1.0, (s.cost_estimate or 5.0) * 0.4)
+                s.cost_estimate = max(1.0, (s.cost_estimate or 15.0) * 0.4)
                 notes.append(
                     Warning(
                         severity="info",
@@ -286,6 +318,44 @@ def _apply_refinement(
                         severity="info",
                         category="refinement",
                         message="Replaced AKS with Azure Container Apps to cut compute cost.",
+                        affected_services=[s.id],
+                    )
+                )
+        for s in services:
+            if s.type == "Azure App Service" and s.config.get("plan") in ("Standard", "Basic", None):
+                s.type = "Azure Functions"
+                s.name = s.name or "Serverless Backend"
+                s.config["plan"] = "consumption"
+                s.cost_estimate = max(2.0, (s.cost_estimate or 13.0) * 0.15)
+                notes.append(
+                    Warning(
+                        severity="info",
+                        category="refinement",
+                        message="Replaced App Service with Azure Functions (consumption plan) for pay-per-use cost.",
+                        affected_services=[s.id],
+                    )
+                )
+        for s in services:
+            if s.type == "Azure SQL Database" and s.config.get("tier") in ("Standard", None):
+                s.config["tier"] = "Basic"
+                s.cost_estimate = max(5.0, (s.cost_estimate or 30.0) * 0.3)
+                notes.append(
+                    Warning(
+                        severity="info",
+                        category="refinement",
+                        message=f"Downgraded {s.name} to Basic tier to reduce database cost.",
+                        affected_services=[s.id],
+                    )
+                )
+        for s in services:
+            if s.type == "Azure Cosmos DB" and not s.config.get("serverless"):
+                s.config["serverless"] = True
+                s.cost_estimate = max(5.0, (s.cost_estimate or 25.0) * 0.4)
+                notes.append(
+                    Warning(
+                        severity="info",
+                        category="refinement",
+                        message=f"Switched {s.name} to serverless mode to reduce idle cost.",
                         affected_services=[s.id],
                     )
                 )
@@ -414,12 +484,41 @@ async def parse_requirements_node(state: AgentState) -> Dict[str, Any]:
         "workload": intent["workload"],
         "scale": intent["scale"],
         "budget": None,
-        "region": intent["region"] or (existing.metadata.regions[0] if existing and existing.metadata.regions else DEFAULT_REGION),
+        "region": intent["region"],
         "refinements": intent["refinements"],
         "raw": effective_message,
     }
 
+    # Gate logic — only on fresh requests, never on any kind of follow-up response
     needs_clarification = False
+    missing_fields: List[str] = []
+
+    existing_region = (
+        existing.metadata.regions[0]
+        if existing and existing.metadata and existing.metadata.regions
+        else None
+    )
+
+    is_validation_response = bool(state.get("is_validation_response"))
+    should_gate = not is_clarification_response and not is_refinement and not is_validation_response
+
+    if should_gate:
+        if not intent["workload_matched"] and intent["workload"] == "web_api":
+            missing_fields.append("workload")
+            needs_clarification = True
+
+        if intent["scale"] is None:
+            missing_fields.append("scale")
+            needs_clarification = True
+
+        if intent["region"] is None and existing_region is None:
+            missing_fields.append("region")
+            needs_clarification = True
+
+    if existing_region and not requirements["region"]:
+        requirements["region"] = existing_region
+    if not requirements["region"]:
+        requirements["region"] = DEFAULT_REGION
 
     if is_clarification_response:
         summary = (
@@ -446,43 +545,65 @@ async def parse_requirements_node(state: AgentState) -> Dict[str, Any]:
         "is_refinement": is_refinement,
         "is_clarification_response": False,
         "needs_clarification": needs_clarification,
+        "pending_missing_fields": missing_fields,
         "messages": [AIMessage(content=summary)],
     }
 
 
 _CLARIFICATION_QUESTIONS = {
-    "region": "Which Azure region should this deploy to? (e.g., eastus, westus2, westeurope)",
-    "scale": "What scale are you expecting? (low / medium / high traffic, or specific numbers)",
+    "workload": {
+        "id": "workload",
+        "question": "What type of system are you building?",
+        "options": [
+            "Web API / REST Service",
+            "Real-time streaming pipeline",
+            "AI / ML workload",
+            "Image or video processing",
+            "Microservices platform",
+            "Serverless / event-driven",
+            "Data pipeline / ETL",
+        ],
+    },
+    "scale": {
+        "id": "scale",
+        "question": "What scale are you targeting?",
+        "options": [
+            "Low  —  under 1K req/min",
+            "Medium  —  1K–10K req/min",
+            "High  —  10K–100K req/min",
+            "Very High  —  100K+ req/min",
+        ],
+    },
+    "region": {
+        "id": "region",
+        "question": "Which Azure region should this deploy to?",
+        "options": [
+            "East US",
+            "West US 2",
+            "West Europe",
+            "Southeast Asia",
+            "Australia East",
+            "UK South",
+        ],
+    },
 }
 
 
 async def request_clarification_node(state: AgentState) -> Dict[str, Any]:
-    requirements = state.get("user_requirements") or _empty_requirements()
-    missing: List[str] = []
-    questions: List[str] = []
-
-    if not requirements.get("region"):
-        missing.append("region")
-        questions.append(_CLARIFICATION_QUESTIONS["region"])
-    if not requirements.get("scale"):
-        missing.append("scale")
-        questions.append(_CLARIFICATION_QUESTIONS["scale"])
-
-    if not questions:
-        questions = ["Could you provide a bit more detail about what you want to build?"]
-        missing = ["workload"]
+    missing_fields: List[str] = state.get("pending_missing_fields") or []
+    questions: List[Dict[str, Any]] = [
+        _CLARIFICATION_QUESTIONS[f] for f in missing_fields if f in _CLARIFICATION_QUESTIONS
+    ]
 
     user_message = state.get("user_message", "")
     note = (
-        "I need a bit more info before I can design the architecture. "
-        f"Original request: \"{user_message[:200]}\". "
-        f"Questions: {' '.join(questions)}"
+        "I need a few more details before I can design this architecture."
     )
 
     return {
         "status": "asking_clarification",
         "pending_clarifications": questions,
-        "pending_missing_fields": missing,
+        "pending_missing_fields": missing_fields,
         "messages": [AIMessage(content=note)],
     }
 
@@ -569,12 +690,19 @@ async def self_correct_node(state: AgentState) -> Dict[str, Any]:
     connections = state.get("connections") or []
     existing_warnings = state.get("warnings") or []
     iteration = int(state.get("iteration", 0)) + 1
+    is_validation_response = bool(state.get("is_validation_response"))
+    fix_choices = state.get("validation_fix_choices") or {}
+
+    def should_apply(category: str) -> bool:
+        if is_validation_response:
+            return fix_choices.get(category, True)
+        return True
 
     fix_notes: List[Warning] = []
     high_warnings = [w for w in existing_warnings if w.severity == "high"]
     medium_warnings = [w for w in existing_warnings if w.severity == "medium"]
 
-    if any(w.category == "single_point_of_failure" for w in high_warnings):
+    if should_apply("single_point_of_failure") and any(w.category == "single_point_of_failure" for w in high_warnings):
         if not any(s.type == "Azure Service Bus" for s in services):
             sb = Service(
                 id=f"svc-{len(services) + 1}-service-bus",
@@ -606,7 +734,7 @@ async def self_correct_node(state: AgentState) -> Dict[str, Any]:
                 )
             )
 
-    if any(w.category == "tight_coupling" for w in medium_warnings):
+    if should_apply("tight_coupling") and any(w.category == "tight_coupling" for w in medium_warnings):
         if not any(s.type in {"Azure Service Bus", "Azure Event Grid", "Azure Queue Storage"} for s in services):
             sb = Service(
                 id=f"svc-{len(services) + 1}-service-bus",
@@ -627,7 +755,7 @@ async def self_correct_node(state: AgentState) -> Dict[str, Any]:
                 )
             )
 
-    if any(w.category == "single_region" for w in medium_warnings):
+    if should_apply("single_region") and any(w.category == "single_region" for w in medium_warnings):
         for s in services:
             if s.type not in {"Application Insights", "Azure Monitor"}:
                 s.region = SECONDARY_REGION
@@ -654,6 +782,36 @@ async def self_correct_node(state: AgentState) -> Dict[str, Any]:
                 )
             )
         ],
+    }
+
+
+async def ask_validation_fixes_node(state: AgentState) -> Dict[str, Any]:
+    existing_warnings = state.get("warnings") or []
+    high_warnings = [w for w in existing_warnings if w.severity == "high"]
+
+    fix_proposals: List[Dict[str, Any]] = []
+    seen: set = set()
+    for w in high_warnings:
+        if w.category in seen:
+            continue
+        seen.add(w.category)
+        fix_proposals.append({
+            "fix_id": w.category,
+            "warning_message": w.message,
+            "suggested_fix": w.suggested_fix or f"Fix the {w.category} issue.",
+            "category": w.category,
+            "affected_services": list(w.affected_services or []),
+        })
+
+    summary = (
+        f"Validation found {len(high_warnings)} high-severity issue(s). "
+        f"Presenting {len(fix_proposals)} fix proposal(s) for user approval."
+    )
+
+    return {
+        "status": "asking_fixes",
+        "pending_validation_fixes": fix_proposals,
+        "messages": [AIMessage(content=summary)],
     }
 
 

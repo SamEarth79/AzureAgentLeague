@@ -9,6 +9,9 @@ export function useWebSocket(sessionId: string | null) {
   const setArchitecture = useArchitectureStore((s) => s.setArchitecture);
   const setConnected = useArchitectureStore((s) => s.setConnected);
   const setLoading = useArchitectureStore((s) => s.setLoading);
+  const setAwaitingClarification = useArchitectureStore((s) => s.setAwaitingClarification);
+  const setValidationFixes = useArchitectureStore((s) => s.setValidationFixes);
+  const setFailureSimResult = useArchitectureStore((s) => s.setFailureSimResult);
   const pendingMessage = useArchitectureStore((s) => s.pendingMessage);
   const setPendingMessage = useArchitectureStore((s) => s.setPendingMessage);
 
@@ -69,6 +72,38 @@ export function useWebSocket(sessionId: string | null) {
           case "complete":
             setLoading(false);
             break;
+          case "clarification_needed":
+            addMessageRef.current({
+              role: "assistant",
+              type: "clarification_needed",
+              content: "I need a few more details before I can design this architecture.",
+              questions: data.questions,
+              missing_fields: data.missing_fields,
+            });
+            setAwaitingClarification(data.questions);
+            setLoading(false);
+            break;
+          case "validation_fixes_needed":
+            addMessageRef.current({
+              role: "assistant",
+              type: "validation_fixes_needed",
+              content: "Validation found issues that need your input.",
+              fixes: data.fixes,
+            });
+            setValidationFixes(data.fixes);
+            setLoading(false);
+            break;
+          case "failure_simulation_result":
+            setFailureSimResult(data);
+            break;
+          case "error":
+            setLoading(false);
+            addMessageRef.current({
+              role: "assistant",
+              type: "warning",
+              content: `Error: ${data.content ?? "Agent run failed"}`,
+            });
+            break;
         }
       },
       onConnect: () => {
@@ -102,5 +137,16 @@ export function useWebSocket(sessionId: string | null) {
     [addMessage]
   );
 
-  return { sendMessage };
+  const sendRaw = useCallback(
+    (content: string) => {
+      wsRef.current?.send({ type: "user_message", content });
+    },
+    [],
+  );
+
+  const sendFailureSim = useCallback((serviceId: string) => {
+    wsRef.current?.send({ type: "failure_simulation", service_id: serviceId });
+  }, []);
+
+  return { sendMessage, sendRaw, sendFailureSim };
 }

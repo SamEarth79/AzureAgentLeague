@@ -1,4 +1,7 @@
 import type { Message } from "../../types/architecture";
+import ClarificationCard from "./ClarificationCard";
+import ValidationFixCard from "./ValidationFixCard";
+import { useArchitectureStore } from "../../stores/architectureStore";
 
 const STEP_COLORS: Record<string, string> = {
   parsing:    "#00d4ff",
@@ -154,6 +157,54 @@ export default function ChatMessage({ message }: { message: Message }) {
     return (
       <div className="flex gap-3 py-1 pl-5">
         <p className="text-[11.5px] text-muted-foreground/60 italic">{message.content}</p>
+      </div>
+    );
+  }
+
+  // Clarification needed
+  if (message.type === "clarification_needed") {
+    const awaiting = useArchitectureStore.getState().awaitingClarification;
+    const frozen = awaiting === null;
+    return (
+      <div className="space-y-3 py-2">
+        <div className="flex gap-3">
+          <div className="mt-1 shrink-0">
+            <div className="h-2 w-2 rounded-full" style={{ background: "#f59e0b", boxShadow: "0 0 6px 1px #f59e0b66" }} />
+          </div>
+          <div>
+            <div className="text-sm font-bold mb-1" style={{ color: "#f59e0b" }}>Clarification Needed</div>
+            <p className="text-[12.5px] text-foreground/75 mb-2">{message.content}</p>
+          </div>
+        </div>
+        <div className="space-y-3 pl-7">
+          {(message.questions || []).map((q) => (
+            <ClarificationCard key={q.id} question={q} frozen={frozen} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Validation fixes needed
+  if (message.type === "validation_fixes_needed") {
+    const fixes = useArchitectureStore.getState().pendingValidationFixes;
+    const frozen = fixes === null;
+    return (
+      <div className="space-y-3 py-2">
+        <div className="flex gap-3">
+          <div className="mt-1 shrink-0">
+            <div className="h-2 w-2 rounded-full" style={{ background: "#f43f5e", boxShadow: "0 0 6px 1px #f43f5e66" }} />
+          </div>
+          <div>
+            <div className="text-sm font-bold mb-1" style={{ color: "#f43f5e" }}>Validation Issues Found</div>
+            <p className="text-[12.5px] text-foreground/75 mb-2">{message.content}</p>
+          </div>
+        </div>
+        <div className="space-y-3 pl-7">
+          {(message.fixes || []).map((f) => (
+            <ValidationFixCard key={f.fix_id} fix={f} frozen={frozen} />
+          ))}
+        </div>
       </div>
     );
   }

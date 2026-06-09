@@ -37,7 +37,7 @@ export class WSClient {
         const data = JSON.parse(event.data);
         this.onMessage(data);
       } catch {
-        console.warn("Failed to parse WS message:", event.data);
+        // ignore malformed message
       }
     };
 
@@ -46,8 +46,8 @@ export class WSClient {
       this.attemptReconnect();
     };
 
-    this.ws.onerror = (err) => {
-      console.error("WebSocket error:", err);
+    this.ws.onerror = () => {
+      // error triggers onclose which handles reconnect
     };
   }
 

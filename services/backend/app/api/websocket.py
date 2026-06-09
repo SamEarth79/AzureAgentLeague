@@ -6,6 +6,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from langchain.schema import AIMessage
 
 from ..agent import run_agent
+from ..agent.failure_sim import simulate_failure
 from ..core import SessionNotFoundError, session_manager
 from ..models.domain import Architecture
 
@@ -41,6 +42,24 @@ async def stream_session(websocket: WebSocket, session_id: str) -> None:
             message_type = payload.get("type")
             content = payload.get("content", "")
 
+            # Failure simulation — pure computation, no agent run needed
+            if message_type == "failure_simulation":
+                service_id = payload.get("service_id", "")
+                try:
+                    session = session_manager.get_session(session_id)
+                    arch = session.current_architecture
+                    if arch and service_id:
+                        result = simulate_failure(arch, service_id)
+                        if result:
+                            await websocket.send_json({"type": "failure_simulation_result", **result})
+                        else:
+                            await websocket.send_json({"type": "error", "content": "Service not found in architecture"})
+                    else:
+                        await websocket.send_json({"type": "error", "content": "No architecture available for simulation"})
+                except Exception:
+                    logger.exception("Failure simulation error for session %s", session_id)
+                continue
+
             if message_type != "user_message" or not content:
                 await websocket.send_json(
                     {
@@ -64,15 +83,45 @@ async def stream_session(websocket: WebSocket, session_id: str) -> None:
                 return
 
             is_answering = session.has_pending_clarifications()
+            is_validating = session.has_pending_validation_fixes()
             original_prompt = session.original_prompt if is_answering else None
             if is_answering:
                 session_manager.set_original_prompt(session_id, None)
                 session_manager.clear_pending_clarifications(session_id)
+            if is_validating:
+                session_manager.clear_pending_validation_fixes(session_id)
 
             existing_arch = session.current_architecture
 
+            # If content is a JSON blob with a manual architecture (from re-validate button),
+            # use it as the existing architecture instead of the session-stored one
+            try:
+                parsed_content = json.loads(content)
+                if isinstance(parsed_content, dict) and parsed_content.get("type") == "revalidate_manual":
+                    arch_data = parsed_content.get("architecture")
+                    if arch_data:
+                        existing_arch = Architecture(**arch_data)
+                        content = "Re-validate"
+            except (json.JSONDecodeError, TypeError, Exception):
+                pass
+
             async def send(event: Dict[str, Any]) -> None:
                 await websocket.send_json(event)
+
+            # Parse validation fix choices from response
+            validation_fix_choices: Dict[str, bool] = {}
+            if is_validating and not is_answering:
+                import re as _re
+                apply_match = _re.search(r"apply:\s*(.+?)(?:\.|$)", content, _re.IGNORECASE)
+                skip_match = _re.search(r"skip:\s*(.+?)(?:\.|$)", content, _re.IGNORECASE)
+                if apply_match:
+                    for fid in _re.split(r"[,\s]+", apply_match.group(1).strip()):
+                        if fid:
+                            validation_fix_choices[fid] = True
+                if skip_match:
+                    for fid in _re.split(r"[,\s]+", skip_match.group(1).strip()):
+                        if fid:
+                            validation_fix_choices[fid] = False
 
             try:
                 final_state = await run_agent(
@@ -83,6 +132,8 @@ async def stream_session(websocket: WebSocket, session_id: str) -> None:
                     existing_architecture=existing_arch,
                     is_clarification_response=is_answering,
                     original_prompt=original_prompt,
+                    is_validation_response=is_validating,
+                    validation_fix_choices=validation_fix_choices if validation_fix_choices else None,
                 )
             except Exception:
                 logger.exception("Agent run failed for session %s", session_id)
@@ -90,6 +141,7 @@ async def stream_session(websocket: WebSocket, session_id: str) -> None:
                     await websocket.send_json(
                         {"type": "error", "content": "Agent run failed; see server logs."}
                     )
+                    await websocket.send_json({"type": "complete"})
                 except Exception:
                     pass
                 continue
@@ -112,6 +164,24 @@ async def stream_session(websocket: WebSocket, session_id: str) -> None:
                 session_manager.update_session(
                     session_id,
                     append_message={"role": "assistant", "content": question_text},
+                )
+                continue
+
+            pending_fixes = list(final_state.get("pending_validation_fixes") or [])
+            if pending_fixes:
+                session_manager.set_pending_validation_fixes(
+                    session_id,
+                    fixes=pending_fixes,
+                )
+
+                last_ai = next(
+                    (m for m in reversed(final_state.get("messages") or []) if isinstance(m, AIMessage)),
+                    None,
+                )
+                fix_text = last_ai.content if last_ai else "Validation fixes needed."
+                session_manager.update_session(
+                    session_id,
+                    append_message={"role": "assistant", "content": fix_text},
                 )
                 continue
 

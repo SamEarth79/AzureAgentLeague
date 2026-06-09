@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from threading import RLock
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..models.domain import Architecture
 
@@ -15,12 +15,16 @@ class Session:
     messages: List[dict] = field(default_factory=list)
     current_architecture: Optional[Architecture] = None
     status: str = "active"
-    pending_clarifications: List[str] = field(default_factory=list)
+    pending_clarifications: List[Any] = field(default_factory=list)
     pending_missing_fields: List[str] = field(default_factory=list)
     original_prompt: Optional[str] = None
+    pending_validation_fixes: List[Any] = field(default_factory=list)
 
     def has_pending_clarifications(self) -> bool:
         return bool(self.pending_clarifications)
+
+    def has_pending_validation_fixes(self) -> bool:
+        return bool(self.pending_validation_fixes)
 
 
 class SessionNotFoundError(Exception):
@@ -92,7 +96,7 @@ class SessionManager:
     def set_pending_clarifications(
         self,
         session_id: str,
-        questions: List[str],
+        questions: List[Any],
         missing_fields: List[str],
     ) -> Session:
         with self._lock:
@@ -112,6 +116,30 @@ class SessionManager:
                 raise SessionNotFoundError(session_id)
             session.pending_clarifications = []
             session.pending_missing_fields = []
+            session.status = "active"
+            session.updated_at = datetime.now(timezone.utc)
+            return session
+
+    def set_pending_validation_fixes(
+        self,
+        session_id: str,
+        fixes: List[Any],
+    ) -> Session:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                raise SessionNotFoundError(session_id)
+            session.pending_validation_fixes = list(fixes)
+            session.status = "awaiting_validation_fixes"
+            session.updated_at = datetime.now(timezone.utc)
+            return session
+
+    def clear_pending_validation_fixes(self, session_id: str) -> Session:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                raise SessionNotFoundError(session_id)
+            session.pending_validation_fixes = []
             session.status = "active"
             session.updated_at = datetime.now(timezone.utc)
             return session

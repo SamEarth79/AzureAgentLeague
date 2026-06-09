@@ -3,27 +3,34 @@ import { Node, Edge } from "reactflow";
 import type { Service, Connection } from "../types/architecture";
 
 export function getLayoutedElements(services: Service[], connections: Connection[]) {
-  const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: "LR", nodesep: 60, ranksep: 120 });
-  g.setDefaultEdgeLabel(() => ({}));
-
-  services.forEach((service) => {
-    g.setNode(service.id, { width: 190, height: 70 });
-  });
-
-  connections.forEach((conn) => {
-    g.setEdge(conn.source_id, conn.target_id);
-  });
-
-  dagre.layout(g);
-
   const nodes: Node[] = services.map((service) => {
-    const pos = g.node(service.id);
+    let pos = service.position;
+
+    if (!pos) {
+      const g = new dagre.graphlib.Graph();
+      g.setGraph({ rankdir: "LR", nodesep: 60, ranksep: 120 });
+      g.setDefaultEdgeLabel(() => ({}));
+
+      services.forEach((s) => {
+        g.setNode(s.id, { width: 190, height: 70 });
+      });
+
+      connections.forEach((conn) => {
+        g.setEdge(conn.source_id, conn.target_id);
+      });
+
+      dagre.layout(g);
+      const dagrePos = g.node(service.id);
+      pos = { x: dagrePos.x - 90, y: dagrePos.y - 40 };
+    }
+
     return {
       id: service.id,
       type: "serviceNode",
-      position: service.position || { x: pos.x - 90, y: pos.y - 40 },
+      position: pos,
       data: service,
+      draggable: true,
+      deletable: true,
     };
   });
 
