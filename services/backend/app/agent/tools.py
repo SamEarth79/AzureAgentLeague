@@ -209,8 +209,8 @@ def _hash_to_float(s: str, lo: float, hi: float) -> float:
     return round(lo + (h % 10000) / 10000.0 * span, 2)
 
 
-async def query_foundry_iq(query: str) -> str:
-    """Mock Foundry IQ: returns a deterministic Azure docs snippet for a query."""
+def _mock_foundry_iq(query: str) -> str:
+    """Deterministic fallback when Azure AI Search is not configured."""
     q = query.lower()
     if "image" in q or "vision" in q or "thumbnail" in q:
         return (
@@ -251,6 +251,91 @@ async def query_foundry_iq(query: str) -> str:
         "Storage Queue) to decouple components, and enable Application Insights "
         "for observability. Reference: archmind://patterns/general-web"
     )
+
+
+def _get_search_client():
+    """Return an Azure AI Search client if credentials are configured, else None."""
+    import os
+    endpoint = os.environ.get("AZURE_SEARCH_ENDPOINT", "").strip()
+    api_key = os.environ.get("AZURE_SEARCH_API_KEY", "").strip()
+    index_name = os.environ.get("AZURE_SEARCH_INDEX_NAME", "archmind-iq").strip()
+    if not endpoint or not api_key:
+        return None, None
+    try:
+        from azure.search.documents import SearchClient
+        from azure.core.credentials import AzureKeyCredential
+        client = SearchClient(
+            endpoint=endpoint,
+            index_name=index_name,
+            credential=AzureKeyCredential(api_key),
+        )
+        return client, index_name
+    except Exception:
+        return None, None
+
+
+async def query_foundry_iq(query: str) -> str:
+    """Query Azure AI Search (Foundry IQ). Falls back to mock if not configured."""
+    import os
+    # use_mock = os.environ.get("USE_MOCK_FOUNDRY_IQ", "false").lower() == "true"
+    use_mock = False
+    if not use_mock:
+        client, _ = _get_search_client()
+        if client is not None:
+            try:
+                results = list(client.search(
+                    search_text=query,
+                    top=3,
+                    select=["title", "content", "service", "category"],
+                ))
+                if results:
+                    parts = []
+                    for r in results:
+                        parts.append(f"[{r['service']} / {r['category']}] {r['title']}: {r['content']}")
+                    print(f"[DEBUG] parts: {parts}")
+                    return "FoundryIQ retrieved:\n" + "\n\n".join(parts)
+            except Exception:
+                pass  # fall through to mock on any search error
+
+    return _mock_foundry_iq(query)
+
+
+async def call_deepseek(system_prompt: str, user_prompt: str) -> str:
+    """Call DeepSeek V3 via OpenAI-compatible API. Returns response text or empty string on error."""
+    import os, traceback
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    import logging as _log
+    _logger = _log.getLogger(__name__)
+    _logger.info("[DeepSeek] call_deepseek invoked, key present=%s", bool(api_key))
+    if not api_key:
+        _logger.warning("[DeepSeek] DEEPSEEK_API_KEY not set — skipping LLM call")
+        return ""
+    try:
+        import httpx
+        payload = {
+            "model": "deepseek-chat",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.3,
+            "max_tokens": 1500,
+        }
+        _logger.info("[DeepSeek] sending request, prompt length=%d", len(user_prompt))
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            r = await client.post(
+                "https://api.deepseek.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=payload,
+            )
+            _logger.info("[DeepSeek] response status=%d", r.status_code)
+            r.raise_for_status()
+            content = r.json()["choices"][0]["message"]["content"]
+            _logger.info("[DeepSeek] response length=%d", len(content))
+            return content
+    except Exception as exc:
+        _logger.error("[DeepSeek] call failed: %s\n%s", exc, traceback.format_exc())
+        return ""
 
 
 async def get_service_catalog(category: Optional[str] = None) -> List[Dict[str, Any]]:

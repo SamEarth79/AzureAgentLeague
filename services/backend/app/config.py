@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     azure_search_api_key: str = ""
     azure_search_index_name: str = "azure-docs-index"
 
-    use_mock_foundry_iq: bool = True
+    use_mock_foundry_iq: bool = False
     use_mock_llm: bool = False
 
     cors_origins: List[str] = Field(

@@ -69,6 +69,20 @@ export function useWebSocket(sessionId: string | null) {
               content: data.content,
             });
             break;
+          case "chat_response":
+            addMessageRef.current({
+              role: "assistant",
+              type: "chat_response",
+              content: data.content,
+            });
+            break;
+          case "summary":
+            addMessageRef.current({
+              role: "assistant",
+              type: "summary",
+              content: data.content,
+            });
+            break;
           case "complete":
             setLoading(false);
             break;
@@ -122,6 +136,7 @@ export function useWebSocket(sessionId: string | null) {
 
     return () => {
       ws.disconnect();
+      setLoading(false);
     };
   }, [sessionId, setArchitecture, setConnected, setLoading]);
 

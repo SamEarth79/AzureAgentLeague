@@ -45,7 +45,6 @@ async def run_agent(
     original_prompt: Optional[str] = None,
     is_validation_response: bool = False,
     validation_fix_choices: Optional[Dict[str, bool]] = None,
-    step_delay: float = 0.2,
 ) -> AgentState:
     """Run the ArchMind agent for one user turn.
 
@@ -113,7 +112,6 @@ async def run_agent(
     final_state = await stream_agent_events(
         initial_state,
         sender=websocket_sender,
-        step_delay=step_delay,
     )
 
     logger.info(

@@ -8,7 +8,6 @@ appended by that node. After the final `__end__` chunk, we emit the
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
@@ -20,8 +19,6 @@ from .state import AgentState
 
 logger = logging.getLogger(__name__)
 
-ENABLE_DELAYS: bool = False
-
 NODE_TO_STEP: Dict[str, str] = {
     "parse": "parsing",
     "request_clarification": "asking_clarification",
@@ -32,19 +29,6 @@ NODE_TO_STEP: Dict[str, str] = {
     "self_correct": "self_correcting",
     "estimate": "estimating",
     "output": "complete",
-}
-
-# How long to pause BEFORE emitting each node's event (mock LLM "thinking" time)
-NODE_DELAYS: Dict[str, float] = {
-    "parse":                 1.5,
-    "query":                 2.5,
-    "reason":                3.0,
-    "validate":              2.0,
-    "ask_validation_fixes":  1.0,
-    "self_correct":          2.0,
-    "estimate":              2.0,
-    "output":                1.0,
-    "request_clarification": 1.0,
 }
 
 DEFAULT_REASONING: Dict[str, str] = {
@@ -115,14 +99,8 @@ async def _maybe_await_sender(
 async def stream_agent_events(
     initial_state: AgentState,
     sender: Optional[Sender] = None,
-    *,
-    step_delay: float = 0.0,
 ) -> AgentState:
-    """Run the graph, emitting WebSocket events for each node + final output.
-
-    Returns the final agent state. `sender` is an async callable that takes an
-    event dict. `step_delay` adds a small pause between events for nicer UX.
-    """
+    """Run the graph, emitting WebSocket events for each node + final output."""
     graph = get_compiled_graph()
     final_state: AgentState = dict(initial_state)
 
@@ -132,10 +110,6 @@ async def stream_agent_events(
                 if node_name == "__end__" and isinstance(state_update, dict):
                     final_state.update(state_update)
                 continue
-
-            delay = NODE_DELAYS.get(node_name, step_delay)
-            if ENABLE_DELAYS and delay > 0:
-                await asyncio.sleep(delay)
 
             step = NODE_TO_STEP.get(node_name, node_name)
             content = _extract_latest_ai_content(state_update.get("messages"))
@@ -150,6 +124,13 @@ async def stream_agent_events(
             new_warnings = state_update.get("warnings") or []
             for w in new_warnings:
                 await _maybe_await_sender(sender, _warning_to_event(w))
+
+    # Chat Q&A path — emit text response only, no architecture event
+    chat_answer = final_state.get("chat_answer_text")
+    if chat_answer:
+        await _maybe_await_sender(sender, {"type": "chat_response", "content": chat_answer})
+        await _maybe_await_sender(sender, {"type": "complete"})
+        return final_state
 
     pending = list(final_state.get("pending_clarifications") or [])
     if pending:
@@ -175,6 +156,11 @@ async def stream_agent_events(
         return final_state
 
     await _maybe_await_sender(sender, _build_architecture_event(final_state))
+
+    summary = final_state.get("architecture_summary")
+    if summary:
+        await _maybe_await_sender(sender, {"type": "summary", "content": summary})
+
     await _maybe_await_sender(sender, {"type": "complete"})
 
     return final_state

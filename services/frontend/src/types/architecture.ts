@@ -78,7 +78,7 @@ export interface ValidationFixProposal {
 
 export interface Message {
   role: "user" | "assistant" | "system";
-  type: "reasoning" | "tool_call" | "tool_result" | "warning" | "architecture" | "complete" | "clarification_needed" | "validation_fixes_needed";
+  type: "reasoning" | "tool_call" | "tool_result" | "warning" | "architecture" | "complete" | "clarification_needed" | "validation_fixes_needed" | "chat_response" | "summary";
   content: string;
   step?: string;
   data?: any;

@@ -1,0 +1,247 @@
+[
+  {
+    "id": "azure-functions-caps",
+    "title": "Azure Functions Capabilities",
+    "content": "Azure Functions is a serverless compute service. Supports HTTP, queue, timer, blob, and event triggers. Consumption plan scales to zero and charges per execution. Cold start latency is 1-3 seconds. Max execution time is 10 minutes on Consumption plan. 99.95% SLA. Best for event-driven, sporadic, or burst workloads.",
+    "service": "Azure Functions",
+    "category": "docs"
+  },
+  {
+    "id": "azure-functions-pricing",
+    "title": "Azure Functions Pricing",
+    "content": "Consumption plan: $0.20 per million executions, $0.000016 per GB-second of memory. First 400,000 GB-seconds and 1 million executions free per month. Premium plan eliminates cold starts and costs ~$140/month minimum. Best for sporadic workloads where pay-per-use saves money over always-on App Service.",
+    "service": "Azure Functions",
+    "category": "pricing"
+  },
+  {
+    "id": "azure-app-service-caps",
+    "title": "Azure App Service Capabilities",
+    "content": "Azure App Service is a fully managed platform for hosting web applications and REST APIs. Supports .NET, Node.js, Python, Java, PHP. Basic tier gives 1 core, 1.75 GB RAM. Standard tier adds auto-scaling and custom domains. No cold starts. 99.95% SLA. Best for always-on web APIs and web apps with predictable traffic.",
+    "service": "Azure App Service",
+    "category": "docs"
+  },
+  {
+    "id": "azure-app-service-pricing",
+    "title": "Azure App Service Pricing",
+    "content": "Basic B1: ~$13/month, 1 core, 1.75 GB RAM. Standard S1: ~$70/month, 1 core, 1.75 GB RAM with auto-scale. Premium P1v3: ~$140/month, 2 cores, 8 GB RAM. Best for sustained workloads where serverless cold starts are unacceptable.",
+    "service": "Azure App Service",
+    "category": "pricing"
+  },
+  {
+    "id": "azure-container-apps-caps",
+    "title": "Azure Container Apps Capabilities",
+    "content": "Azure Container Apps is a serverless container hosting service built on Kubernetes. Supports KEDA-based auto-scaling including scale-to-zero. No Kubernetes management required. Supports Dapr for microservice patterns. 99.95% SLA. Best for containerized microservices and background jobs that need Kubernetes capabilities without the overhead.",
+    "service": "Azure Container Apps",
+    "category": "docs"
+  },
+  {
+    "id": "azure-aks-caps",
+    "title": "Azure Kubernetes Service Capabilities",
+    "content": "Azure Kubernetes Service (AKS) is a managed Kubernetes cluster. Full control over pods, deployments, and cluster configuration. Supports any container workload. Node pools for different VM sizes. Integrated with Azure Monitor, AD, and networking. Best for complex microservices requiring full Kubernetes control. Higher operational overhead than Container Apps.",
+    "service": "Azure Kubernetes Service",
+    "category": "docs"
+  },
+  {
+    "id": "azure-aks-pricing",
+    "title": "Azure Kubernetes Service Pricing",
+    "content": "AKS control plane is free. You pay for VM nodes: Standard DS2 v2 (~$140/month for 3 nodes). Total cluster cost typically $200-500/month for a basic production setup. Much more expensive than Container Apps or Functions for simple workloads. Consider Container Apps first unless you need full Kubernetes control.",
+    "service": "Azure Kubernetes Service",
+    "category": "pricing"
+  },
+  {
+    "id": "azure-blob-caps",
+    "title": "Azure Blob Storage Capabilities",
+    "content": "Azure Blob Storage is object storage for unstructured data. Hot tier for frequently accessed data, Cool tier for infrequent access (30-day min), Archive tier for rarely accessed data (180-day min). 99.9% to 99.99% availability SLA depending on redundancy. Supports up to 5 PB per storage account. Integrates with Event Grid for upload triggers.",
+    "service": "Azure Blob Storage",
+    "category": "docs"
+  },
+  {
+    "id": "azure-blob-pricing",
+    "title": "Azure Blob Storage Pricing",
+    "content": "Hot tier: $0.018/GB/month for first 50 TB. Cool tier: $0.01/GB/month (40% cheaper, higher access costs). Archive tier: $0.00099/GB/month (cheapest storage, high retrieval cost and latency). For image processing pipelines, Hot tier for input/output and Cool for processed results reduces cost significantly.",
+    "service": "Azure Blob Storage",
+    "category": "pricing"
+  },
+  {
+    "id": "azure-cosmos-caps",
+    "title": "Azure Cosmos DB Capabilities",
+    "content": "Azure Cosmos DB is a globally distributed NoSQL database. Supports SQL, MongoDB, Cassandra, Gremlin, and Table APIs. Sub-10ms latency at the 99th percentile. Multi-region writes for global availability. Serverless mode for sporadic workloads. Automatic indexing. 99.999% SLA with multi-region. Best for globally distributed apps needing low latency.",
+    "service": "Azure Cosmos DB",
+    "category": "docs"
+  },
+  {
+    "id": "azure-cosmos-pricing",
+    "title": "Azure Cosmos DB Pricing",
+    "content": "Provisioned throughput: $0.008 per RU/s per hour (~$6/month per 100 RU/s). Serverless: $0.25 per million RUs consumed. Storage: $0.25/GB/month. Multi-region write multiplies cost by number of regions. Serverless mode is cheapest for low or unpredictable traffic. Provisioned with autoscale is best for production.",
+    "service": "Azure Cosmos DB",
+    "category": "pricing"
+  },
+  {
+    "id": "azure-sql-caps",
+    "title": "Azure SQL Database Capabilities",
+    "content": "Azure SQL Database is a fully managed relational database. Compatible with SQL Server. Supports up to 4TB storage. Automatic backups, patching, and high availability. DTU-based and vCore-based purchasing models. Built-in intelligence for performance optimization. Best for transactional workloads with complex queries and ACID requirements.",
+    "service": "Azure SQL Database",
+    "category": "docs"
+  },
+  {
+    "id": "azure-sql-pricing",
+    "title": "Azure SQL Database Pricing",
+    "content": "Basic: ~$5/month, 5 DTUs, 2GB. Standard S0: ~$15/month, 10 DTUs. Standard S2: ~$75/month, 50 DTUs. General Purpose 2 vCores: ~$370/month. For demo and small workloads, Basic or S0 is sufficient. Upgrade to Standard S2 for production API workloads.",
+    "service": "Azure SQL Database",
+    "category": "pricing"
+  },
+  {
+    "id": "azure-service-bus-caps",
+    "title": "Azure Service Bus Capabilities",
+    "content": "Azure Service Bus is an enterprise message broker. Supports queues (point-to-point) and topics (pub/sub). FIFO delivery, dead-letter queues, message sessions, and duplicate detection. AMQP protocol. Standard tier: 256KB max message size. Premium tier: 1MB messages, dedicated resources, no cold start, network isolation. Best for reliable, ordered, transactional messaging.",
+    "service": "Azure Service Bus",
+    "category": "docs"
+  },
+  {
+    "id": "azure-service-bus-pricing",
+    "title": "Azure Service Bus Pricing",
+    "content": "Basic: $0.05 per million operations, queues only. Standard: $10/month base + $0.05 per million operations, includes topics. Premium: ~$678/month per messaging unit, dedicated resources. For most architectures, Standard tier at ~$10-15/month is sufficient. Use Service Bus to decouple compute from storage and eliminate single points of failure.",
+    "service": "Azure Service Bus",
+    "category": "pricing"
+  },
+  {
+    "id": "azure-event-grid-caps",
+    "title": "Azure Event Grid Capabilities",
+    "content": "Azure Event Grid is a fully managed event routing service. Push-based delivery to webhooks, Azure Functions, Logic Apps, Service Bus. Supports custom topics and Azure service events (Blob uploads, resource changes). At-least-once delivery guarantee. Dead-letter destinations for failed events. Best for event-driven architectures where services react to changes.",
+    "service": "Azure Event Grid",
+    "category": "docs"
+  },
+  {
+    "id": "azure-event-grid-pricing",
+    "title": "Azure Event Grid Pricing",
+    "content": "First 100,000 operations/month free. $0.60 per million operations after that. Extremely cost-effective for event routing. For an image processing pipeline at 10k images/minute, cost is approximately $0.60 * 10k * 60 * 24 * 30 / 1M = ~$26/month. Much cheaper than Service Bus for simple event triggering.",
+    "service": "Azure Event Grid",
+    "category": "pricing"
+  },
+  {
+    "id": "azure-event-hubs-caps",
+    "title": "Azure Event Hubs Capabilities",
+    "content": "Azure Event Hubs is a big data streaming platform and event ingestion service. Processes millions of events per second. Kafka-compatible API. Capture feature streams events directly to Blob Storage. Partitioned consumer model for parallel processing. Best for high-throughput telemetry, log aggregation, and IoT data ingestion. Not ideal for point-to-point messaging.",
+    "service": "Azure Event Hubs",
+    "category": "docs"
+  },
+  {
+    "id": "azure-event-hubs-pricing",
+    "title": "Azure Event Hubs Pricing",
+    "content": "Standard: $0.028 per throughput unit/hour (~$11/month per TU at 1 MB/s ingress, 2 MB/s egress). Premium: $0.107 per processing unit/hour. 1 TU handles ~1MB/s or 1000 events/second. For IoT telemetry at 10k events/second, need 10 TUs = ~$110/month. Dedicated tier for very high throughput.",
+    "service": "Azure Event Hubs",
+    "category": "pricing"
+  },
+  {
+    "id": "azure-front-door-caps",
+    "title": "Azure Front Door Capabilities",
+    "content": "Azure Front Door is a global load balancer, CDN, and WAF combined. Routes users to nearest healthy origin using anycast. Built-in DDoS protection and WAF. SSL offloading. Health probes and automatic failover. Reduces latency for global users by serving from edge PoPs. Best for global web applications needing low latency across regions.",
+    "service": "Azure Front Door",
+    "category": "docs"
+  },
+  {
+    "id": "azure-front-door-pricing",
+    "title": "Azure Front Door Pricing",
+    "content": "Standard tier: ~$35/month base + data transfer and routing rule costs. Premium tier: ~$330/month base with WAF and Private Link. For global latency improvement, Front Door adds ~$35-50/month and can reduce user-facing latency from 450ms to under 150ms for globally distributed users.",
+    "service": "Azure Front Door",
+    "category": "pricing"
+  },
+  {
+    "id": "azure-apim-caps",
+    "title": "Azure API Management Capabilities",
+    "content": "Azure API Management is a full lifecycle API gateway. Features: rate limiting, authentication (OAuth, API keys, JWT), request/response transformation, caching, versioning, developer portal. Developer tier for non-production. Consumption tier is serverless and pay-per-call. Best for centralizing API security, throttling, and governance across microservices.",
+    "service": "Azure API Management",
+    "category": "docs"
+  },
+  {
+    "id": "azure-apim-pricing",
+    "title": "Azure API Management Pricing",
+    "content": "Consumption tier: $3.50 per million API calls (pay-per-call, no base cost). Developer tier: ~$48/month (no SLA, not for production). Basic tier: ~$140/month. Standard tier: ~$700/month. For demo purposes, Developer tier at $48/month is sufficient. Consumption tier is cheapest for low-traffic APIs.",
+    "service": "Azure API Management",
+    "category": "pricing"
+  },
+  {
+    "id": "azure-monitor-caps",
+    "title": "Azure Monitor and Application Insights Capabilities",
+    "content": "Azure Monitor collects metrics, logs, and traces from Azure resources. Application Insights is an APM tool built on Azure Monitor for application-level telemetry. Features: distributed tracing, live metrics, dependency tracking, failure analysis, performance monitoring. Application Insights SDK integrates with Functions, App Service, and Container Apps automatically.",
+    "service": "Azure Monitor",
+    "category": "docs"
+  },
+  {
+    "id": "azure-openai-caps",
+    "title": "Azure OpenAI Service Capabilities",
+    "content": "Azure OpenAI Service provides access to OpenAI models (GPT-4o, GPT-4, GPT-3.5-turbo, DALL-E, Whisper, Embeddings) through Azure infrastructure. Enterprise SLA, data privacy (prompts not used for training), private networking options. Rate limits based on deployment quota. Best for AI features requiring compliance, private data handling, and Azure integration.",
+    "service": "Azure OpenAI Service",
+    "category": "docs"
+  },
+  {
+    "id": "azure-ai-search-caps",
+    "title": "Azure AI Search Capabilities",
+    "content": "Azure AI Search (formerly Cognitive Search) is a cloud search service supporting full-text and vector search. Supports semantic ranking, skills pipeline for AI enrichment, and hybrid search combining keyword and vector. Free tier: 50MB, 10k docs, 3 indexes. Basic tier: 2GB, 1M docs. Integrates with Azure OpenAI for RAG patterns.",
+    "service": "Azure AI Search",
+    "category": "docs"
+  },
+  {
+    "id": "pattern-image-pipeline",
+    "title": "Image Processing Pipeline Pattern",
+    "content": "Recommended architecture for image processing: Azure Blob Storage (Hot tier) receives uploads, Azure Event Grid triggers on new blob uploads, Azure Functions processes images using Consumption plan for cost efficiency, processed images stored in Blob Storage (Cool tier). Add Application Insights for observability. For 10k images/minute, Functions auto-scales. Total cost: ~$150-250/month.",
+    "service": "general",
+    "category": "patterns"
+  },
+  {
+    "id": "pattern-web-api",
+    "title": "Web API Architecture Pattern",
+    "content": "Standard web API pattern: Azure App Service hosts the REST API, Azure SQL Database stores relational data, Azure Blob Storage handles file uploads, Azure API Management provides rate limiting and auth. Add Application Insights for monitoring. For cost optimization, replace App Service with Azure Functions on Consumption plan. Total cost: $50-200/month depending on tier.",
+    "service": "general",
+    "category": "patterns"
+  },
+  {
+    "id": "pattern-rag-ai",
+    "title": "RAG AI Workload Pattern",
+    "content": "Retrieval-Augmented Generation pattern: Azure Blob Storage holds source documents, Azure AI Search indexes and enables vector search, Azure Functions orchestrates embedding and retrieval, Azure OpenAI Service generates grounded answers, Azure Cosmos DB stores conversation history. This pattern eliminates LLM hallucination by grounding responses in retrieved documents.",
+    "service": "general",
+    "category": "patterns"
+  },
+  {
+    "id": "pattern-streaming",
+    "title": "Streaming and IoT Pipeline Pattern",
+    "content": "High-throughput streaming pattern: Azure Event Hubs ingests telemetry at millions of events/second, Azure Functions or Stream Analytics processes in real-time, Azure Cosmos DB or Azure SQL stores aggregated results, Azure Monitor tracks pipeline health. For IoT at 100k events/second, use Event Hubs with 100 throughput units. Add dead-letter processing for failed events.",
+    "service": "general",
+    "category": "patterns"
+  },
+  {
+    "id": "pattern-microservices",
+    "title": "Microservices Architecture Pattern",
+    "content": "Microservices pattern on Azure: Azure Kubernetes Service or Container Apps hosts services, Azure Service Bus enables async inter-service communication, Azure Cosmos DB provides per-service data stores, Azure Front Door routes global traffic, Azure API Management acts as the gateway. Start with Container Apps to avoid AKS overhead. Add KEDA for event-driven scaling.",
+    "service": "general",
+    "category": "patterns"
+  },
+  {
+    "id": "pattern-spof",
+    "title": "Single Point of Failure Mitigation",
+    "content": "A single point of failure (SPOF) is any component whose failure causes complete system outage. Mitigation strategies: place Azure Service Bus or Event Grid between producers and consumers to buffer load, use zone-redundant storage and databases, deploy compute to multiple regions with Front Door routing, enable auto-scaling so one instance failure triggers replacement. Azure Service Bus Premium provides geo-disaster recovery.",
+    "service": "general",
+    "category": "patterns"
+  },
+  {
+    "id": "pattern-cost-optimization",
+    "title": "Cost Optimization Patterns",
+    "content": "Azure cost optimization strategies: replace App Service with Azure Functions Consumption plan for sporadic workloads (85% cost reduction), downgrade SQL Database from Standard to Basic for dev/test, switch Blob Storage from Hot to Cool tier for infrequently accessed data (40% savings), use Cosmos DB Serverless for low-traffic databases, use Container Apps instead of AKS (60% cheaper for most workloads).",
+    "service": "general",
+    "category": "patterns"
+  },
+  {
+    "id": "pattern-high-availability",
+    "title": "High Availability and Disaster Recovery",
+    "content": "Azure HA patterns: deploy to paired regions (East US + West US 2), use Azure Front Door for automatic failover, enable geo-replication on Cosmos DB and SQL Database, use zone-redundant storage (ZRS), deploy App Service or Container Apps in multiple regions, use Azure Service Bus Premium for geo-disaster recovery on messaging. Target 99.99% availability requires multi-region active-active.",
+    "service": "general",
+    "category": "patterns"
+  },
+  {
+    "id": "pattern-security",
+    "title": "Security and Zero Trust Pattern",
+    "content": "Azure security patterns: Azure API Management centralizes authentication (OAuth 2.0, JWT validation, API keys), Azure Key Vault stores secrets and certificates, Managed Identity eliminates credential management, Private Endpoints keep traffic off public internet, Azure DDoS Protection guards against volumetric attacks, WAF on Front Door blocks OWASP top 10. Zero trust: verify explicitly, use least privilege, assume breach.",
+    "service": "general",
+    "category": "patterns"
+  }
+]

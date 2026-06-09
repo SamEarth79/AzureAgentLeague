@@ -146,6 +146,15 @@ async def stream_session(websocket: WebSocket, session_id: str) -> None:
                     pass
                 continue
 
+            # Chat Q&A path — save answer to history, don't touch current_architecture
+            if final_state.get("chat_answer_text"):
+                session_manager.update_session(
+                    session_id,
+                    append_message={"role": "assistant", "content": final_state["chat_answer_text"]},
+                    status="complete",
+                )
+                continue
+
             pending_questions = list(final_state.get("pending_clarifications") or [])
             if pending_questions:
                 session_manager.set_pending_clarifications(

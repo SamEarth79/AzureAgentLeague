@@ -13,6 +13,7 @@ from langgraph.graph import END, StateGraph
 
 from .nodes import (
     ask_validation_fixes_node,
+    chat_qa_node,
     estimate_cost_performance_node,
     generate_output_node,
     parse_requirements_node,
@@ -28,7 +29,11 @@ MAX_SELF_CORRECTIONS = 3
 
 
 def _route_after_parse(state: AgentState) -> str:
-    return "request_clarification" if state.get("needs_clarification") else "query"
+    if state.get("needs_clarification"):
+        return "request_clarification"
+    if state.get("is_chat_question"):
+        return "chat_qa"
+    return "query"
 
 
 def _route_after_validate(state: AgentState) -> str:
@@ -64,13 +69,16 @@ def build_graph() -> StateGraph:
     g.add_node("estimate", estimate_cost_performance_node)
     g.add_node("output", generate_output_node)
 
+    g.add_node("chat_qa", chat_qa_node)
+
     g.set_entry_point("parse")
     g.add_conditional_edges(
         "parse",
         _route_after_parse,
-        {"request_clarification": "request_clarification", "query": "query"},
+        {"request_clarification": "request_clarification", "chat_qa": "chat_qa", "query": "query"},
     )
     g.add_edge("request_clarification", END)
+    g.add_edge("chat_qa", END)
     g.add_edge("query", "reason")
     g.add_edge("reason", "validate")
     g.add_conditional_edges(

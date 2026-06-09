@@ -88,6 +88,21 @@ export default function ChatMessage({ message }: { message: Message }) {
     );
   }
 
+  // Chat Q&A response — plain assistant text bubble
+  if (message.type === "chat_response") {
+    return (
+      <div className="flex gap-3 py-1">
+        <div className="mt-1.5 shrink-0">
+          <div className="h-2 w-2 rounded-full" style={{ background: "#00d4ff", boxShadow: "0 0 6px 1px #00d4ff66" }} />
+        </div>
+        <div>
+          <div className="text-sm font-bold mb-1" style={{ color: "#00d4ff" }}>ArchMind</div>
+          <p className="text-[12.5px] text-foreground/75 whitespace-pre-wrap">{message.content}</p>
+        </div>
+      </div>
+    );
+  }
+
   // Reasoning steps (have a step label) — skip "complete" step, it's clubbed into architecture message
   if (message.step || message.type === "reasoning") {
     if (message.step === "complete") return null;
@@ -122,6 +137,21 @@ export default function ChatMessage({ message }: { message: Message }) {
         <div>
           <div className="text-sm font-bold mb-1" style={{ color: "#f59e0b" }}>Warning</div>
           <p className="text-[12.5px] text-foreground/75">{message.content}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Architecture summary — LLM-generated explanation
+  if (message.type === "summary") {
+    return (
+      <div className="flex gap-3 py-1">
+        <div className="mt-1.5 shrink-0">
+          <div className="h-2 w-2 rounded-full" style={{ background: "#8b5cf6", boxShadow: "0 0 6px 1px #8b5cf666" }} />
+        </div>
+        <div>
+          <div className="text-sm font-bold mb-1" style={{ color: "#8b5cf6" }}>ArchMind</div>
+          <p className="text-[12.5px] leading-relaxed text-foreground/75 whitespace-pre-wrap">{message.content}</p>
         </div>
       </div>
     );

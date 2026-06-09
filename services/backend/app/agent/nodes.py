@@ -20,7 +20,9 @@ from ..models.domain import (
 )
 from .state import AgentState
 from .tools import (
+    SERVICE_CATALOG,
     build_architecture_metadata,
+    call_deepseek,
     estimate_cost,
     estimate_performance,
     query_foundry_iq,
@@ -249,30 +251,79 @@ def _build_services(
     return services
 
 
+_TIER_ORDER = [
+    # tier 0 — entry / networking
+    {"Azure Front Door", "Azure CDN", "Azure API Management"},
+    # tier 1 — compute
+    {"Azure Functions", "Azure App Service", "Azure Container Apps", "Azure Kubernetes Service"},
+    # tier 2 — messaging / eventing
+    {"Azure Service Bus", "Azure Event Grid", "Azure Event Hubs", "Azure Queue Storage"},
+    # tier 3 — storage / database
+    {"Azure Blob Storage", "Azure Cosmos DB", "Azure SQL Database", "Azure Table Storage"},
+    # tier 4 — AI
+    {"Azure OpenAI Service", "Azure AI Search", "Azure Document Intelligence"},
+    # tier 5 — observability (leaf, no outgoing edges)
+    {"Azure Monitor", "Application Insights"},
+]
+
+
+def _tier(svc: Service) -> int:
+    for i, group in enumerate(_TIER_ORDER):
+        if svc.type in group:
+            return i
+    return 3  # unknown → treat as storage tier
+
+
+def _conn_meta(src: Service, dst: Service):
+    if "Event Grid" in src.type or "Event Grid" in dst.type:
+        return "event-driven", "Event Grid"
+    if "Service Bus" in src.type or "Service Bus" in dst.type:
+        return "async", "AMQP"
+    if "Event Hubs" in src.type or "Event Hubs" in dst.type:
+        return "async", "AMQP"
+    if any(t in dst.type for t in ("Functions", "Event Grid", "Event Hubs")):
+        return "async", None
+    return "sync", None
+
+
 def _connect(services: List[Service]) -> List[Connection]:
-    """Build a simple linear chain of connections (storage → compute, etc.)."""
+    """Build topology-aware connections. Main services chain by tier; observability taps from compute."""
+    if not services:
+        return []
+
+    obs = [s for s in services if _tier(s) == 5]
+    main = sorted([s for s in services if _tier(s) != 5], key=_tier)
+
     connections: List[Connection] = []
-    for i in range(len(services) - 1):
-        src, dst = services[i], services[i + 1]
-        conn_type = "async" if any(
-            t in dst.type for t in ("Functions", "Event Grid", "Event Hubs")
-        ) else "sync"
-        protocol = None
-        if "Event Grid" in src.type or "Event Grid" in dst.type:
-            conn_type = "event-driven"
-            protocol = "Event Grid"
-        elif "Service Bus" in src.type or "Service Bus" in dst.type:
-            conn_type = "async"
-            protocol = "AMQP"
-        connections.append(
-            Connection(
-                id=f"conn-{i + 1}",
-                source_id=src.id,
-                target_id=dst.id,
-                type=conn_type,
-                protocol=protocol,
-            )
-        )
+    conn_idx = 1
+    seen: set = set()
+
+    def add(src: Service, dst: Service) -> None:
+        nonlocal conn_idx
+        pair = (src.id, dst.id)
+        if pair in seen:
+            return
+        seen.add(pair)
+        conn_type, protocol = _conn_meta(src, dst)
+        connections.append(Connection(
+            id=f"conn-{conn_idx}",
+            source_id=src.id,
+            target_id=dst.id,
+            type=conn_type,
+            protocol=protocol,
+        ))
+        conn_idx += 1
+
+    # Linear chain through main services ordered by tier
+    for i in range(len(main) - 1):
+        add(main[i], main[i + 1])
+
+    # Observability taps from first compute service (tier 1), else first main service
+    anchor = next((s for s in main if _tier(s) == 1), main[0] if main else None)
+    if anchor:
+        for o in obs:
+            add(anchor, o)
+
     return connections
 
 
@@ -539,10 +590,24 @@ async def parse_requirements_node(state: AgentState) -> Dict[str, Any]:
             f"Generating new architecture."
         )
 
+    _CHAT_SIGNALS = [
+        "what is", "what are", "what does", "what's",
+        "explain", "describe", "tell me about",
+        "how does", "how do", "how is",
+        "difference between", "compare", " vs ",
+        "why use", "when to use", "should i use",
+        "can you explain",
+    ]
+    lower_msg = user_message.lower()
+    is_chat = any(sig in lower_msg for sig in _CHAT_SIGNALS)
+    if is_clarification_response or is_validation_response:
+        is_chat = False
+
     return {
         "status": "parsing",
         "user_requirements": requirements,
         "is_refinement": is_refinement,
+        "is_chat_question": is_chat,
         "is_clarification_response": False,
         "needs_clarification": needs_clarification,
         "pending_missing_fields": missing_fields,
@@ -589,6 +654,45 @@ _CLARIFICATION_QUESTIONS = {
 }
 
 
+async def chat_qa_node(state: AgentState) -> Dict[str, Any]:
+    question = state.get("user_message", "")
+    arch = state.get("existing_architecture")
+
+    arch_context = ""
+    if arch and arch.services:
+        arch_context = "Current architecture: " + ", ".join(
+            f"{s.name} ({s.type})" for s in arch.services
+        )
+
+    iq_result = await query_foundry_iq(question)
+
+    system = (
+        "You are ArchMind, an Azure cloud architect assistant. "
+        "Answer the user's question about Azure services, architecture patterns, or cloud design. "
+        "Be concise and practical. 2-4 sentences max unless more detail is clearly needed."
+    )
+    user_prompt = (
+        f"Question: {question}\n\n"
+        + (f"{arch_context}\n\n" if arch_context else "")
+        + f"Relevant Azure docs:\n{iq_result}"
+    )
+
+    answer = await call_deepseek(system, user_prompt)
+    if not answer:
+        answer = (
+            "I can help with Azure architecture questions — try asking about specific services, "
+            "tradeoffs, or design patterns."
+        )
+
+    logger.info("[chat_answer] question=%r answer_len=%d", question[:60], len(answer))
+
+    return {
+        "status": "chat",
+        "chat_answer_text": answer,
+        "messages": [AIMessage(content=answer)],
+    }
+
+
 async def request_clarification_node(state: AgentState) -> Dict[str, Any]:
     missing_fields: List[str] = state.get("pending_missing_fields") or []
     questions: List[Dict[str, Any]] = [
@@ -621,6 +725,78 @@ async def query_foundry_iq_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
+_CATALOG_TYPES = [s["type"] for s in SERVICE_CATALOG]
+
+_DEEPSEEK_SYSTEM = """You are an Azure cloud architect. Given a user's workload description and relevant Azure documentation retrieved from Foundry IQ, select the best set of Azure services for their architecture.
+
+Return ONLY a JSON array. No markdown, no explanation, no code fences. Each element:
+{
+  "type": "<exact Azure service type from the allowed list>",
+  "name": "<short friendly name>",
+  "config": {"key": "value"},
+  "reasoning": "<one sentence why this service fits>"
+}
+
+Allowed service types (use exactly as written):
+""" + "\n".join(f"- {t}" for t in _CATALOG_TYPES) + """
+
+Rules:
+- Return 3-6 services. Always include at least one compute and one storage service.
+- Choose based on the workload and the Foundry IQ context provided.
+- Prefer managed/serverless for cost-efficiency unless scale/control is needed.
+- Do not invent service types not in the allowed list."""
+
+
+async def _llm_blueprint(user_description: str, iq_context: str, region: str) -> List[Dict]:
+    """Call DeepSeek to select services. Returns blueprint tuples or empty list on failure."""
+    import json as _json
+    logger.info("[LLM] _llm_blueprint called: desc=%r iq_len=%d", user_description[:80], len(iq_context))
+
+    user_prompt = (
+        f"User requirement: {user_description}\n\n"
+        f"Foundry IQ context:\n{iq_context}\n\n"
+        f"Target region: {region}\n\n"
+        "Return the JSON array of services now."
+    )
+    raw = ""
+    try:
+        raw = await call_deepseek(_DEEPSEEK_SYSTEM, user_prompt)
+    except Exception as exc:
+        logger.warning("Failed to call DeepSeek: %s", exc)
+        return []
+    print(f"[DEBUG] raw: {raw}")
+    if not raw:
+        return []
+    # Strip accidental markdown fences
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = "\n".join(raw.split("\n")[1:])
+        raw = raw.rsplit("```", 1)[0].strip()
+    try:
+        items = _json.loads(raw)
+        if not isinstance(items, list):
+            return []
+        # Validate each item has required fields and known type
+        valid = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            svc_type = item.get("type", "")
+            if svc_type not in _CATALOG_TYPES:
+                logger.warning("DeepSeek returned unknown service type %r — skipping", svc_type)
+                continue
+            valid.append((
+                svc_type,
+                item.get("config") or {},
+                item.get("name") or svc_type.replace("Azure ", ""),
+                item.get("reasoning") or f"Selected {svc_type} based on requirements.",
+            ))
+        return valid
+    except Exception as exc:
+        logger.warning("Failed to parse DeepSeek blueprint JSON: %s\nRaw: %s", exc, raw[:500])
+        return []
+
+
 async def reason_and_select_node(state: AgentState) -> Dict[str, Any]:
     reqs = state.get("user_requirements") or _empty_requirements()
     workload = reqs.get("workload") or "web_api"
@@ -629,20 +805,84 @@ async def reason_and_select_node(state: AgentState) -> Dict[str, Any]:
     existing = state.get("existing_architecture")
 
     if existing is not None:
-        services = [s.model_copy(deep=True) for s in existing.services]
-        connections = [c.model_copy(deep=True) for c in existing.connections]
-        for s in services:
-            s.region = region
-        for s in services:
-            entry = next(
-                (e for e in _CATALOG_LOOKUP if e["type"] == s.type),
-                None,
-            )
-            if entry is not None:
-                s.cost_estimate = float(entry["base_cost"])
-        refinement_notes = _apply_refinement(services, connections, refinements)
+        # Extract IQ context from state messages
+        iq_context = ""
+        for msg in reversed(state.get("messages") or []):
+            content = getattr(msg, "content", "") or ""
+            if "FoundryIQ" in content or "Foundry IQ" in content:
+                iq_context = content
+                break
+
+        user_desc = reqs.get("raw") or ""
+        existing_summary = ", ".join(
+            f"{s.name} ({s.type})" for s in existing.services
+        )
+        llm_system = (
+            _DEEPSEEK_SYSTEM
+            + f"\n\nThe user is MODIFYING an existing architecture. Current services: {existing_summary}. "
+            "Apply the user's requested change. Keep services that should stay, add new ones, remove if asked. "
+            "Return the COMPLETE updated service list as JSON."
+        )
+        llm_prompt = (
+            f"User request: {user_desc}\n\n"
+            f"Foundry IQ context:\n{iq_context}\n\n"
+            f"Target region: {region}\n\n"
+            "Return the updated JSON array of ALL services now."
+        )
+        raw = await call_deepseek(llm_system, llm_prompt)
+        blueprint = []
+        if raw:
+            raw = raw.strip()
+            if raw.startswith("```"):
+                raw = "\n".join(raw.split("\n")[1:])
+                raw = raw.rsplit("```", 1)[0].strip()
+            try:
+                import json as _json
+                items = _json.loads(raw)
+                if isinstance(items, list):
+                    for item in items:
+                        svc_type = item.get("type", "")
+                        if svc_type in _CATALOG_TYPES:
+                            blueprint.append((
+                                svc_type,
+                                item.get("config") or {},
+                                item.get("name") or svc_type.replace("Azure ", ""),
+                                item.get("reasoning") or f"Selected {svc_type}.",
+                            ))
+                        else:
+                            logger.warning("LLM refinement: unknown type %r — skipping", svc_type)
+            except Exception as exc:
+                logger.warning("Failed to parse LLM refinement JSON: %s", exc)
+
+        if blueprint:
+            services = _build_services(blueprint, region)
+            connections = _connect(services)
+        else:
+            # Fallback: keep existing unchanged
+            logger.info("LLM refinement returned nothing — keeping existing architecture")
+            services = [s.model_copy(deep=True) for s in existing.services]
+            connections = [c.model_copy(deep=True) for c in existing.connections]
+        refinement_notes = []
     else:
-        blueprint = _architecture_blueprint(workload)
+        # Extract Foundry IQ results from state messages
+        iq_context = ""
+        for msg in reversed(state.get("messages") or []):
+            content = getattr(msg, "content", "") or ""
+            if "FoundryIQ" in content or "Foundry IQ" in content:
+                iq_context = content
+                break
+
+        user_desc = reqs.get("raw") or workload
+        print(f"[DEBUG] user_desc: {user_desc}")
+        print(f"[DEBUG] iq_context: {iq_context}")
+        print(f"[DEBUG] region: {region}")
+        blueprint = await _llm_blueprint(user_desc, iq_context, region)
+        print(f"[DEBUG] blueprint: {blueprint}")
+
+        if not blueprint:
+            logger.info("DeepSeek blueprint empty or failed — falling back to hardcoded blueprint")
+            blueprint = _architecture_blueprint(workload)
+
         services = _build_services(blueprint, region)
         connections = _connect(services)
         refinement_notes = _apply_refinement(services, connections, refinements)
@@ -835,9 +1075,48 @@ async def estimate_cost_performance_node(state: AgentState) -> Dict[str, Any]:
 
 
 async def generate_output_node(state: AgentState) -> Dict[str, Any]:
+    services = state.get("selected_services") or []
+    metadata = state.get("metadata")
+    warnings = state.get("warnings") or []
+
+    service_lines = "\n".join(
+        f"- {s.name} ({s.type}): {s.reasoning}" for s in services
+    )
+    cost = metadata.estimated_cost_monthly if metadata else None
+    perf_lines = ""
+    if metadata and (metadata.estimated_latency_p95 or metadata.estimated_throughput):
+        perf_lines = f"Estimated latency p95: {metadata.estimated_latency_p95 or 'N/A'}, throughput: {metadata.estimated_throughput or 'N/A'}."
+
+    high_warnings = [w for w in warnings if w.severity == "high"]
+    warning_lines = ""
+    if high_warnings:
+        warning_lines = "Key risks: " + "; ".join(w.message for w in high_warnings[:3]) + "."
+
+    system = (
+        "You are ArchMind, an Azure cloud architect. "
+        "Write a concise 3-4 sentence summary of the architecture you just designed. "
+        "Cover: what the architecture does, the key services chosen and why, and any notable tradeoffs or risks. "
+        "Be specific — mention service names. No bullet points, no markdown headers."
+    )
+    user_prompt = (
+        f"Services selected:\n{service_lines}\n\n"
+        + (f"Monthly cost estimate: ${cost}\n" if cost else "")
+        + (f"{perf_lines}\n" if perf_lines else "")
+        + (f"{warning_lines}\n" if warning_lines else "")
+        + "\nWrite the summary now."
+    )
+
+    summary_text = await call_deepseek(system, user_prompt)
+    if not summary_text:
+        summary_text = (
+            "Architecture designed with "
+            + ", ".join(s.name for s in services[:4])
+            + ("..." if len(services) > 4 else "")
+            + "."
+        )
+
     return {
         "status": "complete",
-        "messages": [
-            AIMessage(content="Architecture ready. Sending final output to canvas."),
-        ],
+        "architecture_summary": summary_text,
+        "messages": [AIMessage(content=summary_text)],
     }

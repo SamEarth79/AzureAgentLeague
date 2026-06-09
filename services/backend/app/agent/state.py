@@ -41,3 +41,7 @@ class AgentState(TypedDict, total=False):
     pending_validation_fixes: List[Dict[str, Any]]
     is_validation_response: bool
     validation_fix_choices: Dict[str, bool]
+
+    is_chat_question: bool
+    chat_answer_text: str
+    architecture_summary: str
