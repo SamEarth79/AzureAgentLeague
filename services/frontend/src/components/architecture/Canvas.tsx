@@ -295,7 +295,10 @@ export default function Canvas({ className }: { className?: string }) {
         edgeTypes={edgeTypes}
         onNodesChange={handleNodesChange}
         onNodeClick={(_, node) => setSelectedNode(node.id)}
-        onPaneClick={() => setSelectedNode(null)}
+        onPaneClick={() => {
+          setSelectedNode(null);
+          instance.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
+        }}
         onConnect={onConnect}
         onDragOver={onDragOver}
         onDrop={onDrop}

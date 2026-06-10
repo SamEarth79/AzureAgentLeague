@@ -249,6 +249,7 @@ export default function ClarificationCard({
 
   return (
     <QuestionStep
+      key={question.id}
       question={question}
       frozen={frozen}
       stepIndex={currentStep}
