@@ -6,7 +6,9 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from langchain.schema import AIMessage
 
 from ..agent import run_agent
+from ..agent.commands import audit_architecture, explain_architecture, optimize_architecture
 from ..agent.failure_sim import simulate_failure
+from ..agent.scenario_sim import simulate_scenario
 from ..core import SessionNotFoundError, session_manager
 from ..models.domain import Architecture
 
@@ -60,6 +62,91 @@ async def stream_session(websocket: WebSocket, session_id: str) -> None:
                     logger.exception("Failure simulation error for session %s", session_id)
                 continue
 
+            # Scenario simulation — LLM-powered, no agent graph run needed
+            if message_type == "simulate_scenario":
+                scenario = payload.get("scenario", "").strip()
+                try:
+                    session = session_manager.get_session(session_id)
+                    arch = session.current_architecture
+                    if not arch:
+                        await websocket.send_json({"type": "error", "content": "No architecture loaded. Generate one first."})
+                    elif not scenario:
+                        await websocket.send_json({"type": "error", "content": "No scenario provided."})
+                    else:
+                        result = await simulate_scenario(arch, scenario, session_id)
+                        await websocket.send_json({
+                            "type": "simulate_scenario_result",
+                            "reasoning": result.get("reasoning", ""),
+                            "failure_map": result.get("failure_map"),
+                            "scenario": scenario,
+                        })
+                except Exception:
+                    logger.exception("Scenario simulation error for session %s", session_id)
+                    await websocket.send_json({"type": "error", "content": "Scenario simulation failed."})
+                continue
+
+            # /optimize — LLM rewrites architecture toward a goal
+            if message_type == "optimize_architecture":
+                goal = payload.get("goal", "cost").strip()
+                try:
+                    session = session_manager.get_session(session_id)
+                    arch = session.current_architecture
+                    if not arch:
+                        await websocket.send_json({"type": "error", "content": "No architecture loaded. Generate one first."})
+                    else:
+                        result = await optimize_architecture(arch, goal, session_id)
+                        new_arch = result.get("architecture")
+                        if new_arch:
+                            session_manager.update_session(session_id, current_architecture=new_arch, status="complete")
+                        await websocket.send_json({
+                            "type": "optimize_result",
+                            "reasoning": result.get("reasoning", ""),
+                            "architecture": new_arch.model_dump() if new_arch else None,
+                            "goal": goal,
+                        })
+                except Exception:
+                    logger.exception("Optimize error for session %s", session_id)
+                    await websocket.send_json({"type": "error", "content": "Optimization failed."})
+                continue
+
+            # /audit — security and compliance scan
+            if message_type == "audit_architecture":
+                try:
+                    session = session_manager.get_session(session_id)
+                    arch = session.current_architecture
+                    if not arch:
+                        await websocket.send_json({"type": "error", "content": "No architecture loaded. Generate one first."})
+                    else:
+                        result = await audit_architecture(arch, session_id)
+                        await websocket.send_json({
+                            "type": "audit_result",
+                            "reasoning": result.get("reasoning", ""),
+                        })
+                except Exception:
+                    logger.exception("Audit error for session %s", session_id)
+                    await websocket.send_json({"type": "error", "content": "Audit failed."})
+                continue
+
+            # /explain — explain architecture to a target audience
+            if message_type == "explain_architecture":
+                audience = payload.get("audience", "cto").strip()
+                try:
+                    session = session_manager.get_session(session_id)
+                    arch = session.current_architecture
+                    if not arch:
+                        await websocket.send_json({"type": "error", "content": "No architecture loaded. Generate one first."})
+                    else:
+                        result = await explain_architecture(arch, audience, session_id)
+                        await websocket.send_json({
+                            "type": "explain_result",
+                            "reasoning": result.get("reasoning", ""),
+                            "audience": audience,
+                        })
+                except Exception:
+                    logger.exception("Explain error for session %s", session_id)
+                    await websocket.send_json({"type": "error", "content": "Explanation failed."})
+                continue
+
             if message_type != "user_message" or not content:
                 await websocket.send_json(
                     {
@@ -102,6 +189,12 @@ async def stream_session(websocket: WebSocket, session_id: str) -> None:
                     if arch_data:
                         existing_arch = Architecture(**arch_data)
                         content = "Re-validate"
+                elif isinstance(parsed_content, dict) and parsed_content.get("type") == "apply_optimization":
+                    arch_data = parsed_content.get("architecture")
+                    if arch_data:
+                        existing_arch = Architecture(**arch_data)
+                        session_manager.update_session(session_id, current_architecture=existing_arch)
+                    content = "Apply the optimization suggestions to the current architecture, validate it, and produce the final output."
             except (json.JSONDecodeError, TypeError, Exception):
                 pass
 

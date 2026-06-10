@@ -78,11 +78,14 @@ export interface ValidationFixProposal {
 
 export interface Message {
   role: "user" | "assistant" | "system";
-  type: "reasoning" | "tool_call" | "tool_result" | "warning" | "architecture" | "complete" | "clarification_needed" | "validation_fixes_needed" | "chat_response" | "summary";
+  type: "reasoning" | "tool_call" | "tool_result" | "warning" | "warnings_group" | "architecture" | "complete" | "clarification_needed" | "validation_fixes_needed" | "chat_response" | "summary";
   content: string;
   step?: string;
   data?: any;
   questions?: ClarificationQuestion[];
   missing_fields?: string[];
   fixes?: ValidationFixProposal[];
+  scenario?: string;
+  commandType?: "optimize" | "simulate";
+  warnings?: { content: string; severity: string }[];
 }

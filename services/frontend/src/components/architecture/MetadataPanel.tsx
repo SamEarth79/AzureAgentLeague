@@ -1,4 +1,5 @@
-import { AlertTriangle, Zap, BookOpen } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, Zap, BookOpen, ChevronDown, ChevronRight } from "lucide-react";
 import { useArchitectureStore } from "../../stores/architectureStore";
 import type { Service } from "../../types/architecture";
 
@@ -33,6 +34,53 @@ const IMPACT_COLORS: Record<string, { text: string; bg: string; border: string; 
   degraded:       { text: "#f59e0b", bg: "bg-amber-500/10",  border: "border-amber-500/30",  label: "Degraded"       },
   delayed_impact: { text: "#eab308", bg: "bg-yellow-500/10", border: "border-yellow-500/30", label: "At Risk"        },
 };
+
+function WarningsSection({ warnings }: { warnings: import("../../types/architecture").Warning[] }) {
+  const [open, setOpen] = useState(false);
+  const high = warnings.filter((w) => w.severity === "high");
+  const rest = warnings.filter((w) => w.severity !== "high");
+
+  const warningCard = (w: import("../../types/architecture").Warning, idx: number) => (
+    <div
+      key={idx}
+      className={`text-xs p-2.5 rounded-lg border ${
+        w.severity === "high"
+          ? "border-destructive/30 bg-destructive/10"
+          : w.severity === "medium"
+            ? "border-warning/30 bg-warning/10"
+            : "border-white/10 bg-white/5"
+      }`}
+    >
+      <div className="font-medium text-foreground">{w.message}</div>
+      {w.suggested_fix && (
+        <div className="text-muted-foreground mt-1 text-[11px]">Fix: {w.suggested_fix}</div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-2">
+      {high.map((w, idx) => warningCard(w, idx))}
+      {rest.length > 0 && (
+        <div>
+          <button
+            onClick={() => setOpen((o) => !o)}
+            className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition w-full py-1"
+          >
+            {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            <AlertTriangle size={11} className="text-warning" />
+            {rest.length} {rest.length === 1 ? "warning" : "warnings"}
+          </button>
+          {open && (
+            <div className="space-y-2 mt-1">
+              {rest.map((w, idx) => warningCard(w, high.length + idx))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function MetadataPanel({
   className,
@@ -80,7 +128,7 @@ export default function MetadataPanel({
             <div className="bg-white/5 border border-white/10 rounded-lg p-3">
               <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Monthly Cost</div>
               <div className="text-xl font-bold text-[#f59e0b]">
-                {selectedService.cost_estimate != null ? `$${selectedService.cost_estimate}` : "—"}
+                {selectedService.cost_estimate != null ? `$${Number(selectedService.cost_estimate).toFixed(2)}` : "—"}
               </div>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-lg p-3">
@@ -203,7 +251,7 @@ export default function MetadataPanel({
           <div className="bg-white/5 border border-white/10 rounded-lg p-3 overflow-hidden">
             <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Monthly Cost</div>
             <div className="text-xl font-bold text-[#f59e0b] truncate">
-              ${metadata?.estimated_cost_monthly || "—"}
+              {metadata?.estimated_cost_monthly != null ? `$${Number(metadata.estimated_cost_monthly).toFixed(2)}` : "—"}
             </div>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-lg p-3 overflow-hidden">
@@ -227,35 +275,7 @@ export default function MetadataPanel({
         </div>
       </div>
 
-      {warnings && warnings.length > 0 && (
-        <div>
-          <h3 className="font-semibold text-sm text-foreground mb-2 flex items-center gap-1.5">
-            <AlertTriangle size={16} className="text-warning" />
-            Warnings ({warnings.length})
-          </h3>
-          <div className="space-y-2">
-            {warnings.map((w, idx) => (
-              <div
-                key={idx}
-                className={`text-xs p-2.5 rounded-lg border ${
-                  w.severity === "high"
-                    ? "border-destructive/30 bg-destructive/10"
-                    : w.severity === "medium"
-                      ? "border-warning/30 bg-warning/10"
-                      : "border-white/10 bg-white/5"
-                }`}
-              >
-                <div className="font-medium text-foreground">{w.message}</div>
-                {w.suggested_fix && (
-                  <div className="text-muted-foreground mt-1 text-[11px]">
-                    Fix: {w.suggested_fix}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {warnings && warnings.length > 0 && <WarningsSection warnings={warnings} />}
 
       <button
         onClick={onRevalidate}

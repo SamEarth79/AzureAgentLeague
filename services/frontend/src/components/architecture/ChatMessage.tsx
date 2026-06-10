@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import { Wrench, Settings2, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import type { Message } from "../../types/architecture";
 import ClarificationCard from "./ClarificationCard";
 import ValidationFixCard from "./ValidationFixCard";
@@ -113,7 +114,7 @@ function StepMessage({ message }: { message: Message }) {
   );
 }
 
-export default function ChatMessage({ message }: { message: Message }) {
+export default function ChatMessage({ message, onSendMessage, onApplyOptimization }: { message: Message; onSendMessage?: (msg: string) => void; onApplyOptimization?: (arch: any) => void }) {
   // User bubble
   if (message.role === "user") {
     return (
@@ -195,6 +196,38 @@ export default function ChatMessage({ message }: { message: Message }) {
         <div className="flex-1 min-w-0">
           <div className="text-sm font-bold mb-2" style={{ color: "#8b5cf6" }}>ArchMind</div>
           <MarkdownBlock content={message.content} />
+          {message.scenario && onSendMessage && (
+            <button
+              onClick={() => onSendMessage(`Apply the fixes suggested for the ${message.scenario} scenario to the current architecture`)}
+              className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition"
+              style={{
+                background: "linear-gradient(135deg, #7c3aed, #8b5cf6)",
+                color: "#fff",
+                boxShadow: "0 0 18px 2px #8b5cf644",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 0 24px 4px #8b5cf666")}
+              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "0 0 18px 2px #8b5cf644")}
+            >
+              <Wrench size={14} />
+              Implement Fix
+            </button>
+          )}
+          {message.commandType === "optimize" && message.data && onApplyOptimization && (
+            <button
+              onClick={() => onApplyOptimization(message.data)}
+              className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition"
+              style={{
+                background: "linear-gradient(135deg, #065f46, #10b981)",
+                color: "#fff",
+                boxShadow: "0 0 18px 2px #10b98144",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 0 24px 4px #10b98166")}
+              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "0 0 18px 2px #10b98144")}
+            >
+              <Settings2 size={14} />
+              Implement Suggestions
+            </button>
+          )}
         </div>
       </div>
     );
@@ -280,5 +313,57 @@ export default function ChatMessage({ message }: { message: Message }) {
     );
   }
 
+  // Grouped warnings accordion
+  if (message.type === "warnings_group") {
+    return <WarningsGroup warnings={message.warnings ?? []} />;
+  }
+
   return null;
+}
+
+function WarningsGroup({ warnings }: { warnings: { content: string; severity: string }[] }) {
+  const [open, setOpen] = useState(false);
+  const high = warnings.filter((w) => w.severity === "high");
+  const rest = warnings.filter((w) => w.severity !== "high");
+  const total = warnings.length;
+
+  const severityColor = (s: string) =>
+    s === "high" ? "#ef4444" : s === "medium" ? "#f59e0b" : "#94a3b8";
+
+  return (
+    <div className="flex gap-3 py-1">
+      <div className="mt-1.5 shrink-0">
+        <div className="h-2 w-2 rounded-full" style={{ background: "#f59e0b", boxShadow: "0 0 6px 1px #f59e0b66" }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center gap-2 text-sm font-bold mb-1 hover:opacity-80 transition"
+          style={{ color: "#f59e0b" }}
+        >
+          {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          <AlertTriangle size={13} />
+          {total} {total === 1 ? "Warning" : "Warnings"}
+          {high.length > 0 && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 ml-1">
+              {high.length} high
+            </span>
+          )}
+        </button>
+        {open && (
+          <div className="space-y-1.5 mt-1">
+            {warnings.map((w, i) => (
+              <div
+                key={i}
+                className="flex gap-2 items-start text-[12px] text-foreground/75 px-2 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06]"
+              >
+                <div className="mt-0.5 shrink-0 h-1.5 w-1.5 rounded-full" style={{ background: severityColor(w.severity) }} />
+                <span>{w.content}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

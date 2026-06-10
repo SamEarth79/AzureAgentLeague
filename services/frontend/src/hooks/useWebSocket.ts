@@ -19,6 +19,7 @@ export function useWebSocket(sessionId: string | null) {
   const pendingMessageRef = useRef(pendingMessage);
   const addMessageRef = useRef(addMessage);
   const setPendingMessageRef = useRef(setPendingMessage);
+  const warningBufferRef = useRef<{ content: string; severity: string }[]>([]);
   useEffect(() => { pendingMessageRef.current = pendingMessage; }, [pendingMessage]);
   useEffect(() => { addMessageRef.current = addMessage; }, [addMessage]);
   useEffect(() => { setPendingMessageRef.current = setPendingMessage; }, [setPendingMessage]);
@@ -30,6 +31,16 @@ export function useWebSocket(sessionId: string | null) {
       onMessage: (data) => {
         switch (data.type) {
           case "reasoning":
+            // Flush buffered warnings before the next step so they appear right after Validating
+            if (warningBufferRef.current.length > 0) {
+              addMessageRef.current({
+                role: "assistant",
+                type: "warnings_group",
+                content: "",
+                warnings: [...warningBufferRef.current],
+              });
+              warningBufferRef.current = [];
+            }
             addMessageRef.current({
               role: "assistant",
               type: "reasoning",
@@ -63,11 +74,7 @@ export function useWebSocket(sessionId: string | null) {
             });
             break;
           case "warning":
-            addMessageRef.current({
-              role: "assistant",
-              type: "warning",
-              content: data.content,
-            });
+            warningBufferRef.current.push({ content: data.content, severity: data.severity ?? "medium" });
             break;
           case "chat_response":
             addMessageRef.current({
@@ -84,6 +91,15 @@ export function useWebSocket(sessionId: string | null) {
             });
             break;
           case "complete":
+            if (warningBufferRef.current.length > 0) {
+              addMessageRef.current({
+                role: "assistant",
+                type: "warnings_group",
+                content: "",
+                warnings: [...warningBufferRef.current],
+              });
+              warningBufferRef.current = [];
+            }
             setLoading(false);
             break;
           case "clarification_needed":
@@ -109,6 +125,37 @@ export function useWebSocket(sessionId: string | null) {
             break;
           case "failure_simulation_result":
             setFailureSimResult(data);
+            break;
+          case "simulate_scenario_result":
+            if (data.failure_map) setFailureSimResult(data.failure_map);
+            if (data.reasoning) {
+              addMessageRef.current({
+                role: "assistant",
+                type: "summary",
+                content: data.reasoning,
+                scenario: data.scenario,
+              });
+            }
+            setLoading(false);
+            break;
+          case "optimize_result":
+            if (data.reasoning) {
+              addMessageRef.current({
+                role: "assistant",
+                type: "summary",
+                content: data.reasoning,
+                commandType: "optimize",
+                data: data.architecture ?? null,
+              });
+            }
+            setLoading(false);
+            break;
+          case "audit_result":
+          case "explain_result":
+            if (data.reasoning) {
+              addMessageRef.current({ role: "assistant", type: "summary", content: data.reasoning });
+            }
+            setLoading(false);
             break;
           case "error":
             setLoading(false);
@@ -163,5 +210,41 @@ export function useWebSocket(sessionId: string | null) {
     wsRef.current?.send({ type: "failure_simulation", service_id: serviceId });
   }, []);
 
-  return { sendMessage, sendRaw, sendFailureSim };
+  const sendSimulation = useCallback((scenario: string) => {
+    if (!wsRef.current) return;
+    setLoading(true);
+    addMessage({ role: "user", type: "reasoning", content: `/simulate ${scenario}` } as Message);
+    wsRef.current.send({ type: "simulate_scenario", scenario });
+  }, [addMessage, setLoading]);
+
+  const sendOptimize = useCallback((goal: string) => {
+    if (!wsRef.current) return;
+    setLoading(true);
+    addMessage({ role: "user", type: "reasoning", content: `/optimize ${goal}` } as Message);
+    wsRef.current.send({ type: "optimize_architecture", goal });
+  }, [addMessage, setLoading]);
+
+  const sendApplyOptimization = useCallback((arch: any) => {
+    if (!wsRef.current) return;
+    setLoading(true);
+    addMessage({ role: "user", type: "reasoning", content: "Implement optimization suggestions" } as Message);
+    // Send as user_message with JSON payload — backend extracts arch and runs agent
+    wsRef.current.send({ type: "user_message", content: JSON.stringify({ type: "apply_optimization", architecture: arch }) });
+  }, [addMessage, setLoading]);
+
+  const sendAudit = useCallback(() => {
+    if (!wsRef.current) return;
+    setLoading(true);
+    addMessage({ role: "user", type: "reasoning", content: `/audit` } as Message);
+    wsRef.current.send({ type: "audit_architecture" });
+  }, [addMessage, setLoading]);
+
+  const sendExplain = useCallback((audience: string) => {
+    if (!wsRef.current) return;
+    setLoading(true);
+    addMessage({ role: "user", type: "reasoning", content: `/explain ${audience}` } as Message);
+    wsRef.current.send({ type: "explain_architecture", audience });
+  }, [addMessage, setLoading]);
+
+  return { sendMessage, sendRaw, sendFailureSim, sendSimulation, sendOptimize, sendAudit, sendExplain, sendApplyOptimization };
 }

@@ -1,14 +1,76 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, Cpu, Layers, Radio } from "lucide-react";
+import { Send, Loader2, Cpu, Layers, Radio, Zap, Shield, TrendingUp, Globe, Database, Lock, DollarSign, Search, Users } from "lucide-react";
 import { useArchitectureStore } from "../../stores/architectureStore";
 import ChatMessage from "./ChatMessage";
+
+const SLASH_COMMANDS: Record<string, {
+  description: string;
+  icon: React.ElementType;
+  color: string;
+  args?: { label: string; value: string; icon: React.ElementType }[];
+}> = {
+  simulate: {
+    description: "Simulate a failure scenario against the architecture",
+    icon: Zap,
+    color: "#8b5cf6",
+    args: [
+      { label: "ddos",           value: "ddos",           icon: Shield },
+      { label: "rush_hour",      value: "rush_hour",      icon: TrendingUp },
+      { label: "region_failure", value: "region_failure", icon: Globe },
+      { label: "data_breach",    value: "data_breach",    icon: Lock },
+      { label: "scale",          value: "scale",          icon: TrendingUp },
+      { label: "db_failure",     value: "db_failure",     icon: Database },
+    ],
+  },
+  optimize: {
+    description: "Rewrite the architecture toward a specific goal",
+    icon: TrendingUp,
+    color: "#10b981",
+    args: [
+      { label: "cost",        value: "cost",        icon: DollarSign },
+      { label: "latency",     value: "latency",     icon: Zap },
+      { label: "reliability", value: "reliability", icon: Shield },
+      { label: "security",    value: "security",    icon: Lock },
+      { label: "scalability", value: "scalability", icon: Globe },
+    ],
+  },
+  audit: {
+    description: "Security & compliance audit of the current architecture",
+    icon: Search,
+    color: "#f43f5e",
+  },
+  explain: {
+    description: "Explain the architecture to a specific audience",
+    icon: Users,
+    color: "#f59e0b",
+    args: [
+      { label: "cto",      value: "cto",      icon: Users },
+      { label: "investor", value: "investor", icon: Users },
+      { label: "developer", value: "developer", icon: Users },
+      { label: "devops",   value: "devops",   icon: Users },
+      { label: "product",  value: "product",  icon: Users },
+    ],
+  },
+};
+
+const SLASH_RE = /^\/(\w+)\s+(.+)/i;
 
 export default function ChatPanel({
   className,
   onSendMessage,
+  onSimulate,
+  onOptimize,
+  onAudit,
+  onExplain,
+  onApplyOptimization,
 }: {
   className?: string;
   onSendMessage: (msg: string) => void;
+  onSimulate?: (scenario: string) => void;
+  onOptimize?: (goal: string) => void;
+  onAudit?: () => void;
+  onExplain?: (audience: string) => void;
+  onApplyOptimization?: (arch: any) => void;
 }) {
   const [input, setInput] = useState("");
   const messages = useArchitectureStore((s) => s.messages);
@@ -33,6 +95,18 @@ export default function ChatPanel({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || !canSend || isLoading) return;
+    const trimmed = input.trim();
+    // Slash commands with an arg
+    const match = trimmed.match(SLASH_RE);
+    if (match) {
+      const cmd = match[1].toLowerCase();
+      const arg = match[2].trim();
+      if (cmd === "simulate") { onSimulate?.(arg); setInput(""); return; }
+      if (cmd === "optimize") { onOptimize?.(arg); setInput(""); return; }
+      if (cmd === "explain")  { onExplain?.(arg);  setInput(""); return; }
+    }
+    // Slash commands with no arg
+    if (trimmed === "/audit") { onAudit?.(); setInput(""); return; }
     setLoading(true);
     await onSendMessage(input);
     setInput("");
@@ -147,12 +221,12 @@ export default function ChatPanel({
           </div>
         )}
         {messages.map((msg, idx) => (
-          <ChatMessage key={idx} message={msg} />
+          <ChatMessage key={idx} message={msg} onSendMessage={onSendMessage} onApplyOptimization={onApplyOptimization} />
         ))}
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSubmit} className="p-4 border-t border-white/10">
+      <form onSubmit={handleSubmit} className="p-4 border-t border-white/10 relative">
         {awaitingClarification && (
           <button
             type="button"
@@ -173,12 +247,80 @@ export default function ChatPanel({
             Apply Selected Fixes
           </button>
         )}
+        {/* Slash command menu */}
+        {input.startsWith("/") && (() => {
+          const trimmed = input.trim();
+          const typed = trimmed.slice(1); // strip leading "/"
+
+          // Exact command match with a space → show its args
+          const exactKey = Object.keys(SLASH_COMMANDS).find((k) => trimmed === `/${k}` || trimmed.startsWith(`/${k} `));
+          if (exactKey) {
+            const def = SLASH_COMMANDS[exactKey];
+            const Icon = def.icon;
+            const hasArg = trimmed.length > exactKey.length + 2;
+            if (hasArg || !def.args) return null;
+            return (
+              <div className="mb-2 rounded-lg border bg-[#111118] overflow-hidden" style={{ borderColor: `${def.color}40` }}>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 border-b" style={{ borderColor: `${def.color}20` }}>
+                  <Icon size={11} style={{ color: def.color }} />
+                  <span className="text-[11px] font-semibold" style={{ color: def.color }}>/{exactKey}</span>
+                  <span className="text-[11px] text-muted-foreground">— {def.description}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 p-2">
+                  {def.args.map((arg) => {
+                    const ArgIcon = arg.icon;
+                    return (
+                      <button
+                        key={arg.value}
+                        type="button"
+                        onClick={() => setInput(`/${exactKey} ${arg.value}`)}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium border border-white/10 bg-white/5 hover:bg-white/10 transition"
+                        style={{ color: "#c4b5fd" }}
+                      >
+                        <ArgIcon size={10} />
+                        {arg.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
+
+          // Partial match — filter commands whose name starts with what's typed
+          const matches = Object.entries(SLASH_COMMANDS).filter(([k]) => k.startsWith(typed));
+          if (matches.length === 0) return null;
+          return (
+            <div className="mb-2 rounded-lg border border-white/10 bg-[#111118] overflow-hidden">
+              <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest text-muted-foreground border-b border-white/[0.06]">
+                Commands
+              </div>
+              {matches.map(([cmd, def]) => {
+                const Icon = def.icon;
+                return (
+                  <button
+                    key={cmd}
+                    type="button"
+                    onClick={() => setInput(`/${cmd} `)}
+                    className="flex items-center gap-3 w-full px-3 py-2 text-left hover:bg-white/[0.04] transition"
+                  >
+                    <span className="flex items-center justify-center h-5 w-5 rounded" style={{ background: `${def.color}20` }}>
+                      <Icon size={11} style={{ color: def.color }} />
+                    </span>
+                    <span className="text-xs font-semibold" style={{ color: def.color }}>/{cmd}</span>
+                    <span className="text-[11px] text-muted-foreground">{def.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
         <div className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={awaitingClarification ? "Fill in the answers above to continue\u2026" : pendingValidationFixes ? "Choose which fixes to apply above\u2026" : "Describe what you want to build..."}
+            placeholder={awaitingClarification ? "Fill in the answers above to continue\u2026" : pendingValidationFixes ? "Choose which fixes to apply above\u2026" : "Describe what you want to build\u2026 or /simulate ddos"}
             className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-electric focus:ring-1 focus:ring-electric/30 transition"
             disabled={isLoading || !!awaitingClarification || !!pendingValidationFixes}
           />

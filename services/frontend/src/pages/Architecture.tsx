@@ -13,7 +13,7 @@ export default function Architecture() {
   const sessionId = useArchitectureStore((s) => s.sessionId);
   const setPendingMessage = useArchitectureStore((s) => s.setPendingMessage);
   const addMessage = useArchitectureStore((s) => s.addMessage);
-  const { sendMessage, sendRaw, sendFailureSim } = useWebSocket(sessionId);
+  const { sendMessage, sendRaw, sendFailureSim, sendSimulation, sendOptimize, sendAudit, sendExplain, sendApplyOptimization } = useWebSocket(sessionId);
   const { startSession } = useSession();
 
   const handleSendMessage = async (content: string) => {
@@ -63,7 +63,15 @@ export default function Architecture() {
 
       {/* Main: Chat (25%) + Canvas (75%) */}
       <div className="flex-1 flex overflow-hidden">
-        <ChatPanel className="w-[350px] shrink-0" onSendMessage={handleSendMessage} />
+        <ChatPanel
+          className="w-[350px] shrink-0"
+          onSendMessage={handleSendMessage}
+          onSimulate={sendSimulation}
+          onOptimize={sendOptimize}
+          onAudit={sendAudit}
+          onExplain={sendExplain}
+          onApplyOptimization={sendApplyOptimization}
+        />
         <ReactFlowProvider>
           <Canvas className="flex-1" />
         </ReactFlowProvider>
