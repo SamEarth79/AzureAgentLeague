@@ -1,14 +1,15 @@
-"""Mock tools for the ArchMind agent.
+"""Tool implementations for the ArchMind agent.
 
-These mimic the shape of real LangChain tools the agent will eventually call
-(Foundry IQ queries, cost/performance estimation, validation) but return
-deterministic data. Replace these with real tool implementations when Azure
-OpenAI and Foundry IQ are wired up.
+Foundry IQ retrieval (Azure AI Search, with a deterministic fallback when no
+search index is configured), cost/performance estimation, and architecture
+validation. LLM calls go through `call_deepseek`, an OpenAI-compatible chat
+completions client currently pointed at DeepSeek for cost efficiency during
+development — see the README for the rationale and the one-line swap to
+Azure OpenAI / Microsoft Foundry (GPT-4o).
 """
 from __future__ import annotations
 
 import hashlib
-import re
 from typing import Any, Dict, List, Optional
 
 # ---------------------------------------------------------------------------
@@ -304,26 +305,21 @@ def _get_search_client():
 
 async def query_foundry_iq(query: str) -> str:
     """Query Azure AI Search (Foundry IQ). Falls back to mock if not configured."""
-    import os
-    # use_mock = os.environ.get("USE_MOCK_FOUNDRY_IQ", "false").lower() == "true"
-    use_mock = False
-    if not use_mock:
-        client, _ = _get_search_client()
-        if client is not None:
-            try:
-                results = list(client.search(
-                    search_text=query,
-                    top=3,
-                    select=["title", "content", "service", "category"],
-                ))
-                if results:
-                    parts = []
-                    for r in results:
-                        parts.append(f"[{r['service']} / {r['category']}] {r['title']}: {r['content']}")
-                    print(f"[DEBUG] parts: {parts}")
-                    return "FoundryIQ retrieved:\n" + "\n\n".join(parts)
-            except Exception:
-                pass  # fall through to mock on any search error
+    client, _ = _get_search_client()
+    if client is not None:
+        try:
+            results = list(client.search(
+                search_text=query,
+                top=3,
+                select=["title", "content", "service", "category"],
+            ))
+            if results:
+                parts = []
+                for r in results:
+                    parts.append(f"[{r['service']} / {r['category']}] {r['title']}: {r['content']}")
+                return "FoundryIQ retrieved:\n" + "\n\n".join(parts)
+        except Exception:
+            pass  # fall through to mock on any search error
 
     return _mock_foundry_iq(query)
 
@@ -418,36 +414,6 @@ async def call_deepseek(
     except Exception as exc:
         _logger.error("[DeepSeek] call failed: %s\n%s", exc, traceback.format_exc())
         return ""
-
-
-async def get_service_catalog(category: Optional[str] = None) -> List[Dict[str, Any]]:
-    if category is None:
-        return list(SERVICE_CATALOG)
-    return [s for s in SERVICE_CATALOG if s["category"] == category]
-
-
-def _slug(s: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
-
-
-async def select_service(
-    service_type: str,
-    config: Optional[Dict[str, Any]] = None,
-    reasoning: str = "",
-) -> Service:
-    """Construct a Service model. Looks up base cost from the catalog."""
-    entry = next((s for s in SERVICE_CATALOG if s["type"] == service_type), None)
-    if entry is None:
-        raise ValueError(f"Unknown service type: {service_type}")
-    return Service(
-        id=f"svc-{_slug(service_type)}",
-        type=service_type,
-        name=service_type.replace("Azure ", ""),
-        config=config or {},
-        reasoning=reasoning or f"Selected {service_type} based on requirements.",
-        cost_estimate=float(entry["base_cost"]),
-        region="eastus",
-    )
 
 
 async def validate_architecture(
@@ -892,9 +858,4 @@ def build_architecture_metadata(
         estimated_latency_p95=str(perf.get("latency_p95", "")),
         estimated_throughput=str(perf.get("throughput", "")),
         regions=sorted({s.region for s in services}),
-        compliance=[],
-        failure_scenarios=[
-            "Compute cold start under burst load",
-            "Storage throttling under high concurrency",
-        ],
     )

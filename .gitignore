@@ -19,3 +19,4 @@ yarn-error.log*
 services/frontend/node_modules/
 archmind-ai-blueprint-main/
 archmind/
+TASKS.md

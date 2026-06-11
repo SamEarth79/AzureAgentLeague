@@ -28,7 +28,6 @@ from .tools import (
     estimate_cost,
     estimate_performance,
     query_foundry_iq,
-    select_service,
     validate_architecture,
 )
 
@@ -820,7 +819,6 @@ async def _llm_blueprint(user_description: str, iq_context: str, region: str, se
     except Exception as exc:
         logger.warning("Failed to call DeepSeek: %s", exc)
         return []
-    print(f"[DEBUG] raw: {raw}")
     if not raw:
         return []
     # Strip accidental markdown fences
@@ -930,11 +928,7 @@ async def reason_and_select_node(state: AgentState) -> Dict[str, Any]:
                 break
 
         user_desc = reqs.get("raw") or workload
-        print(f"[DEBUG] user_desc: {user_desc}")
-        print(f"[DEBUG] iq_context: {iq_context}")
-        print(f"[DEBUG] region: {region}")
         blueprint = await _llm_blueprint(user_desc, iq_context, region, session_id=session_id)
-        print(f"[DEBUG] blueprint: {blueprint}")
 
         if not blueprint:
             logger.info("DeepSeek blueprint empty or failed — falling back to hardcoded blueprint")

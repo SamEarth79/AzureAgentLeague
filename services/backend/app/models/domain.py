@@ -26,8 +26,6 @@ class ArchitectureMetadata(BaseModel):
     estimated_latency_p95: str = ""
     estimated_throughput: str = ""
     regions: List[str] = Field(default_factory=list)
-    compliance: List[str] = Field(default_factory=list)
-    failure_scenarios: List[str] = Field(default_factory=list)
 
 
 class Warning(BaseModel):

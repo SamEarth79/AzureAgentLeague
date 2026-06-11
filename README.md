@@ -4,6 +4,8 @@ An AI agent that reasons through Azure system design decisions in real time, ren
 
 **The reasoning chain is the product. The canvas is the output.**
 
+> **Model provider note:** ArchMind is built against an Azure OpenAI / Microsoft Foundry-compatible chat-completions interface. For development and cost efficiency, the deployed model is DeepSeek-V3 (also OpenAI-compatible) — prompts, tool-calling pattern, the LangGraph reasoning flow, and Foundry IQ grounding are all unchanged. Swapping the active model to Azure OpenAI GPT-4o is a one-line change to the chat-completions client (`call_deepseek` in `app/agent/tools.py`); the `azure_openai_*` settings in `app/config.py` are the prepared swap point.
+
 ---
 
 ## 🎥 Demo
@@ -97,7 +99,7 @@ Refinements ("make it cheaper", "add redundancy") re-run the full pipeline with 
 | Layer | Technology |
 |-------|-----------|
 | Agent framework | LangGraph |
-| LLM | GPT-4o via Microsoft Azure Foundry |
+| LLM | Foundry-compatible chat-completions API (DeepSeek-V3 in this deployment for cost efficiency; one-line swap to Azure OpenAI GPT-4o) |
 | Knowledge grounding | Azure AI Search (Foundry IQ) |
 | Backend | Python + FastAPI + WebSocket |
 | Frontend | React + React Flow + Zustand |
@@ -123,7 +125,7 @@ The entire 4-service stack was built in under a week. Without Copilot, this buil
 
 ### Track 2 — Reasoning Agents with Microsoft Foundry
 
-ArchMind is grounded in real Azure data through Foundry IQ (Azure AI Search). The agent doesn't hallucinate service capabilities — it retrieves specs, pricing tables, architecture patterns, and known failure modes before reasoning.
+ArchMind is grounded in real Azure data through Foundry IQ (Azure AI Search). The agent doesn't hallucinate service capabilities — it retrieves specs, pricing tables, architecture patterns, and known failure modes before reasoning. The agent runs against a Foundry-compatible chat-completions interface (currently DeepSeek-V3 for cost efficiency, swappable to Azure OpenAI GPT-4o — see the Model provider note above); the reasoning flow, tool-calling, and IQ-grounding pattern are identical either way.
 
 **Foundry IQ grounding covers:**
 - Azure service specifications and limits

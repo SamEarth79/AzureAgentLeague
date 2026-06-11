@@ -70,7 +70,7 @@ function Hero() {
       <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
         <div className="animate-fade-up">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full glass text-xs uppercase tracking-wider text-electric-soft mb-6">
-            <Sparkles size={12} /> Built on Microsoft Azure Foundry
+            <Sparkles size={12} /> Foundry-Compatible Reasoning Agent
           </div>
           <h1 className="font-display font-extrabold leading-[0.95] text-5xl sm:text-6xl lg:text-[72px]">
             <span className="block">BUILD AZURE</span>
@@ -342,7 +342,7 @@ function Footer() {
           </div>
           <p className="mt-3 text-sm text-muted-foreground max-w-xs">AI architect that reasons through every decision and draws the blueprint in real-time.</p>
           <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full glass text-[11px] uppercase tracking-wider text-electric-soft">
-            React + React Flow + LangGraph + Azure Foundry
+            React + React Flow + LangGraph + Foundry IQ
           </div>
         </div>
         <div className="md:justify-self-center">
@@ -359,7 +359,7 @@ function Footer() {
         </div>
         <div className="md:justify-self-end text-sm text-muted-foreground">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full glass text-[11px] uppercase tracking-wider text-foreground/80">
-            Powered by Microsoft Foundry + GitHub Copilot
+            Powered by Foundry IQ + GitHub Copilot
           </div>
           <p className="mt-4">© 2026 ArchMind — Built for AI Skills Fest</p>
         </div>

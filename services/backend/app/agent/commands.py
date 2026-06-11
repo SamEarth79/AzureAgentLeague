@@ -87,9 +87,7 @@ The JSON must follow this exact shape:
     "estimated_cost_monthly": 0.0,
     "estimated_latency_p95": "...",
     "estimated_throughput": "...",
-    "regions": ["eastus"],
-    "compliance": [],
-    "failure_scenarios": []
+    "regions": ["eastus"]
   }
 }
 ```
