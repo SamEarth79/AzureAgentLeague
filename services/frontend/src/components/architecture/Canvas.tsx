@@ -8,7 +8,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { toPng } from "html-to-image";
-import { FileJson, FileImage, X, BookOpen, Download } from "lucide-react";
+import { FileJson, FileImage, X, BookOpen, Download, RotateCcw } from "lucide-react";
 import { useArchitectureStore } from "../../stores/architectureStore";
 import { getLayoutedElements } from "../../lib/layoutEngine";
 import { SERVICE_CATALOG } from "../../lib/serviceCatalog";
@@ -31,6 +31,7 @@ export default function Canvas({ className }: { className?: string }) {
 
   const failureSimResult = useArchitectureStore((s) => s.failureSimResult);
   const clearFailureSim = useArchitectureStore((s) => s.clearFailureSim);
+  const resetCanvas = useArchitectureStore((s) => s.resetCanvas);
 
   const instance = useReactFlow();
   const rfWrapperRef = useRef<HTMLDivElement>(null);
@@ -194,8 +195,22 @@ export default function Canvas({ className }: { className?: string }) {
         </div>
       )}
 
-      {/* Top-right controls: Legend + Export */}
+      {/* Top-right controls: Clear Canvas + Legend + Export */}
       <div className="absolute top-2 right-3 z-20 flex gap-2">
+
+        {/* Clear Canvas button */}
+        <button
+          onClick={() => {
+            resetCanvas();
+            setLegendOpen(false);
+            setExportOpen(false);
+          }}
+          disabled={!hasContent}
+          className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs backdrop-blur-sm transition disabled:opacity-30 disabled:pointer-events-none border-white/[0.08] bg-[#111118]/90 text-muted-foreground hover:text-foreground hover:border-white/20"
+        >
+          <RotateCcw size={13} />
+          Clear Canvas
+        </button>
 
         {/* Legend button + dropdown */}
         <div className="relative">

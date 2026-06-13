@@ -875,14 +875,22 @@ async def reason_and_select_node(state: AgentState) -> Dict[str, Any]:
         llm_system = (
             _DEEPSEEK_SYSTEM
             + f"\n\nThe user is MODIFYING an existing architecture. Current services: {existing_summary}. "
-            "Apply the user's requested change. Keep services that should stay, add new ones, remove if asked. "
+            "Apply the user's requested change. Keep services that should stay, remove if asked. "
+            "If the user's request implies new capability the current architecture does not already provide "
+            "(e.g. mitigating a single point of failure, adding redundancy, caching, monitoring, a queue, "
+            "a CDN, autoscaling, a new tier, etc.), you MUST add one or more NEW services from the allowed "
+            "list to the returned array — do not just tweak config or reasoning on existing services. "
+            "A response that returns the exact same set of service types as the current services when the "
+            "user asked for a change of this kind is INCORRECT. "
             "Return the COMPLETE updated service list as JSON."
         )
         llm_prompt = (
             f"User request: {user_desc}\n\n"
             f"Foundry IQ context:\n{iq_context}\n\n"
             f"Target region: {region}\n\n"
-            "Return the updated JSON array of ALL services now."
+            "Return the updated JSON array of ALL services now. If this request calls for new "
+            "capability, include the new service(s) in the array in addition to the existing ones "
+            "that should remain."
         )
         raw = await call_deepseek(llm_system, llm_prompt, session_id=session_id, update_history=True)
         blueprint = []

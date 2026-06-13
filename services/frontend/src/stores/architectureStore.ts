@@ -61,6 +61,8 @@ interface ArchitectureStore {
   failureSimResult: FailureSimResult | null;
   setFailureSimResult: (result: FailureSimResult | null) => void;
   clearFailureSim: () => void;
+
+  resetCanvas: () => void;
 }
 
 export const useArchitectureStore = create<ArchitectureStore>((set) => ({
@@ -203,4 +205,18 @@ export const useArchitectureStore = create<ArchitectureStore>((set) => ({
   failureSimResult: null,
   setFailureSimResult: (result) => set({ failureSimResult: result }),
   clearFailureSim: () => set({ failureSimResult: null }),
+
+  resetCanvas: () =>
+    set({
+      sessionId: null,
+      architecture: null,
+      selectedNodeId: null,
+      failureSimResult: null,
+      pendingValidationFixes: null,
+      validationFixChoices: {},
+      awaitingClarification: null,
+      clarificationAnswers: {},
+      messages: [],
+      pendingMessage: null,
+    }),
 }));
